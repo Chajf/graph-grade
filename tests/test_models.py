@@ -76,7 +76,7 @@ def test_sharepoint_submission_model_supports_resolution_issues() -> None:
     )
 
     submission = SharePointStudentSubmission(
-        prace_root=Path("/prace"),
+        submissions_root=Path("/prace"),
         group_id="lab1",
         student_folder="Jan_Kowalski",
         lab_id="lab7",
@@ -94,7 +94,7 @@ def test_sharepoint_submission_model_supports_resolution_issues() -> None:
 
 def test_sharepoint_submission_model_marks_resolved_with_notebook() -> None:
     submission = SharePointStudentSubmission(
-        prace_root=Path("/prace"),
+        submissions_root=Path("/prace"),
         group_id="lab1",
         student_folder="Anna_Nowak",
         lab_id="lab7",
