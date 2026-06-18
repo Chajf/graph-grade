@@ -3,17 +3,17 @@ from pathlib import Path
 
 from app.graphs.section_graph import create_section_graph
 from app.nodes.section_loader import initialize_section_state
-from app.repositories import GradingSpecRepository
 from app.services.evidence import build_evidence_index
 from app.services.notebook_parser import parse_notebook
 from app.services.notebook_splitter import split_notebook_by_lab_spec
+from app.services.spec_loader import build_lab_spec
 
 
 def test_phase5_grades_lab7_part02_with_requirement_level_results(tmp_path: Path) -> None:
     notebook_path = tmp_path / "lab7_phase5.ipynb"
     write_lab7_part02_notebook(notebook_path)
 
-    lab_spec = GradingSpecRepository(Path("work/grading_specs")).load_lab_spec("lab7")
+    lab_spec = build_lab7_part02_spec()
     part_spec = next(part for part in lab_spec.parts if part.part_id == "02")
     parsed = parse_notebook(notebook_path)
     section = next(
@@ -60,6 +60,140 @@ def test_phase5_grades_lab7_part02_with_requirement_level_results(tmp_path: Path
     assert result_grade.status == "full"
     assert result_grade.points_possible == 0
     assert result_grade.evidence_cells
+
+
+def build_lab7_part02_spec():
+    return build_lab_spec(
+        {
+            "lab_id": "lab7",
+            "title": "Lab 7",
+            "language": "pl",
+            "expected_submission": {
+                "notebook_pattern": "lab7_*.ipynb",
+                "required_files": [],
+            },
+            "grading": {
+                "total_points": 25,
+            },
+        },
+        [
+            {
+                "part_id": "02",
+                "title": "Tools: parsing, TOPSIS, and LP allocation",
+                "source_heading": "## Część 2 – Narzędzia `@tool`: parsowanie, TOPSIS, LP",
+                "cell_range": {
+                    "start_heading": "## Część 2 – Narzędzia `@tool`: parsowanie, TOPSIS, LP",
+                    "end_heading": "## Część 3 – Structured Output z `ProviderStrategy`",
+                },
+                "requirements": {
+                    "code": [
+                        {
+                            "id": "lab7_part02_supplier_offer_schema",
+                            "description": (
+                                "Defines SupplierOffer as Pydantic BaseModel with all required "
+                                "fields and Field descriptions."
+                            ),
+                            "evidence": {
+                                "cell_markers": [
+                                    "class SupplierOffer",
+                                    "BaseModel",
+                                    "Field",
+                                    "supplier_name",
+                                    "price_per_unit",
+                                    "delivery_days",
+                                    "quality_score",
+                                    "capacity",
+                                    "payment_days",
+                                ]
+                            },
+                            "points": 4,
+                        },
+                        {
+                            "id": "lab7_part02_parse_supplier_offer_tool",
+                            "description": (
+                                "Implements parse_supplier_offer as a LangChain @tool using LLM "
+                                "structured output to return SupplierOffer JSON."
+                            ),
+                            "evidence": {
+                                "cell_markers": [
+                                    "@tool",
+                                    "def parse_supplier_offer",
+                                    "ProviderStrategy",
+                                    "SupplierOffer",
+                                    "model_dump_json",
+                                ]
+                            },
+                            "points": 4,
+                        },
+                        {
+                            "id": "lab7_part02_rank_suppliers_topsis_tool",
+                            "description": (
+                                "Implements rank_suppliers_topsis with JSON parsing, decision "
+                                "matrix, TOPSIS weights/types, and sorted textual ranking."
+                            ),
+                            "evidence": {
+                                "cell_markers": [
+                                    "def rank_suppliers_topsis",
+                                    "TOPSIS",
+                                    "weights",
+                                    "types",
+                                    "json.loads",
+                                ]
+                            },
+                            "points": 4,
+                        },
+                        {
+                            "id": "lab7_part02_optimize_allocation_lp_tool",
+                            "description": (
+                                "Implements optimize_allocation_lp with integer PuLP variables, "
+                                "demand/budget/capacity constraints, infeasible handling, and "
+                                "textual allocation."
+                            ),
+                            "evidence": {
+                                "cell_markers": [
+                                    "def optimize_allocation_lp",
+                                    "LpVariable",
+                                    'cat="Integer"',
+                                    "LpProblem",
+                                    "Infeasible",
+                                ]
+                            },
+                            "points": 5,
+                        },
+                    ],
+                    "markdown": [
+                        {
+                            "id": "lab7_part02_tools_reflection",
+                            "description": (
+                                "Explains @tool role, LLM extraction versus regex, separate "
+                                "versus batched offer parsing, and business risk of parsing errors."
+                            ),
+                            "evidence": {
+                                "heading_or_text": "Wymagany komentarz – Część 2",
+                            },
+                            "points": 8,
+                        }
+                    ],
+                    "results": [
+                        {
+                            "id": "lab7_part02_executed_cells",
+                            "description": (
+                                "Required code cells are executed and relevant outputs are present."
+                            ),
+                            "checks": [
+                                "required_code_cells_have_execution_count_or_equivalent_visible_outputs",
+                                "no_error_outputs_in_required_cells",
+                            ],
+                            "points": 0,
+                        }
+                    ],
+                    "code_applicability": "required",
+                    "markdown_applicability": "required",
+                    "results_applicability": "required",
+                },
+            }
+        ],
+    )
 
 
 def write_lab7_part02_notebook(path: Path) -> None:
