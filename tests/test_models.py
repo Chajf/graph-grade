@@ -11,6 +11,7 @@ from app.models import (
     ParsedNotebook,
     RequirementEvidence,
     RequirementSpec,
+    SectionEvidence,
     SharePointStudentSubmission,
 )
 
@@ -193,3 +194,52 @@ def test_parsed_notebook_model_serializes_paths_and_outputs() -> None:
     assert dumped["path"] == "/submissions/lab7.ipynb"
     assert dumped["cells"][0]["cell_type"] == "code"
     assert dumped["cells"][0]["outputs"][0]["data"] == {"text/plain": "1"}
+
+
+def test_section_evidence_model_groups_cells_outputs_and_errors() -> None:
+    error = NotebookError(
+        ename="ValueError",
+        evalue="bad value",
+        traceback=["Traceback line"],
+    )
+    markdown_cell = NotebookCell(
+        index=0,
+        cell_type="markdown",
+        source="## Tools",
+        normalized_source="## Tools",
+        headings=["Tools"],
+    )
+    code_cell = NotebookCell(
+        index=1,
+        cell_type="code",
+        source="print('parsed')",
+        normalized_source="print('parsed')",
+        output_text="parsed\nValueError: bad value",
+        errors=[error],
+    )
+
+    evidence = SectionEvidence(
+        part_id="02",
+        title="Tools",
+        start_heading="## Tools",
+        end_heading="## Structured output",
+        mapping_confidence="high",
+        cells=[markdown_cell, code_cell],
+        code_cells=[code_cell],
+        markdown_cells=[markdown_cell],
+        output_text="parsed\nValueError: bad value",
+        errors=[error],
+    )
+
+    dumped = evidence.model_dump(mode="json")
+
+    assert evidence.part_id == "02"
+    assert evidence.mapping_confidence == "high"
+    assert evidence.missing_start_heading is False
+    assert evidence.missing_end_heading is False
+    assert [cell.index for cell in evidence.cells] == [0, 1]
+    assert evidence.code_cells == [code_cell]
+    assert evidence.markdown_cells == [markdown_cell]
+    assert evidence.errors[0].ename == "ValueError"
+    assert dumped["cells"][0]["cell_type"] == "markdown"
+    assert dumped["errors"][0]["traceback"] == ["Traceback line"]

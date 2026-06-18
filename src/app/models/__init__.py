@@ -16,6 +16,7 @@ from app.models.submissions import (
     NotebookResolutionIssue,
     SharePointStudentSubmission,
 )
+from app.models.evidence import SectionEvidence
 
 __all__ = [
     "CellRangeSpec",
@@ -29,5 +30,6 @@ __all__ = [
     "ParsedNotebook",
     "RequirementEvidence",
     "RequirementSpec",
+    "SectionEvidence",
     "SharePointStudentSubmission",
 ]
