@@ -47,21 +47,30 @@ class SharePointRepository:
         student_folder: str,
         lab_spec: LabSpec,
     ) -> SharePointStudentSubmission:
-        lab_folder = self.submissions_root / group_id / student_folder / lab_spec.lab_id
+        student_folder_path = self.submissions_root / group_id / student_folder
+        lab_folder, lab_folder_issue = self._select_lab_folder(student_folder_path, lab_spec.lab_id)
+        expected_lab_folder = student_folder_path / lab_spec.lab_id
         base_kwargs = {
             "submissions_root": self.submissions_root,
             "group_id": group_id,
             "student_folder": student_folder,
             "lab_id": lab_spec.lab_id,
-            "lab_folder": lab_folder,
+            "lab_folder": lab_folder or expected_lab_folder,
         }
 
-        if not lab_folder.is_dir():
+        if lab_folder_issue is not None:
+            return SharePointStudentSubmission(
+                **base_kwargs,
+                status="ambiguous" if lab_folder_issue.code == "ambiguous_lab_folder" else "unresolved",
+                issue=lab_folder_issue,
+            )
+
+        if lab_folder is None or not lab_folder.is_dir():
             return SharePointStudentSubmission(
                 **base_kwargs,
                 issue=NotebookResolutionIssue(
                     code="missing_lab_folder",
-                    message=f"Lab folder not found: {lab_folder}",
+                    message=f"Lab folder not found: {expected_lab_folder}",
                 ),
             )
 
@@ -104,6 +113,41 @@ class SharePointRepository:
             missing_required_files=missing_required_files,
             status="resolved",
         )
+
+    def _select_lab_folder(
+        self,
+        student_folder_path: Path,
+        lab_id: str,
+    ) -> tuple[Path | None, NotebookResolutionIssue | None]:
+        if not student_folder_path.is_dir():
+            return None, None
+
+        child_dirs = [
+            path
+            for path in sorted(student_folder_path.iterdir(), key=lambda item: item.name.casefold())
+            if path.is_dir()
+        ]
+
+        for path in child_dirs:
+            if path.name == lab_id:
+                return path, None
+
+        case_insensitive_matches = [
+            path
+            for path in child_dirs
+            if path.name.casefold() == lab_id.casefold()
+        ]
+
+        if len(case_insensitive_matches) == 1:
+            return case_insensitive_matches[0], None
+        if len(case_insensitive_matches) > 1:
+            return None, NotebookResolutionIssue(
+                code="ambiguous_lab_folder",
+                message=f"Multiple lab folders match {lab_id!r} by case-insensitive name.",
+                candidates=case_insensitive_matches,
+            )
+
+        return None, None
 
     def _select_version_folder(self, lab_folder: Path) -> Path | None:
         version_folders = [
