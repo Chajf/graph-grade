@@ -1,4 +1,5 @@
-from app.services.code_features import extract_code_features
+from app.models import NotebookCell
+from app.services.code_features import extract_code_features, match_code_markers
 
 
 def test_extract_code_features_from_valid_python() -> None:
@@ -60,3 +61,126 @@ repeated()
 
     assert features.functions == ["repeated"]
     assert features.calls == ["repeated"]
+
+
+def test_match_code_markers_detects_class_and_function_markers() -> None:
+    cells = [
+        code_cell(
+            3,
+            """
+class SupplierOffer:
+    pass
+
+def parse_supplier_offer(raw_offer):
+    return raw_offer
+""",
+        )
+    ]
+
+    findings = match_code_markers(
+        cells,
+        ["class SupplierOffer", "def parse_supplier_offer"],
+    )
+
+    assert [finding.matched for finding in findings] == [True, True]
+    assert [finding.kind for finding in findings] == ["class", "function"]
+    assert [finding.evidence_cells for finding in findings] == [[3], [3]]
+
+
+def test_match_code_markers_detects_async_function_marker() -> None:
+    findings = match_code_markers(
+        [
+            code_cell(
+                1,
+                """
+async def fetch_supplier_offer():
+    return {}
+""",
+            )
+        ],
+        ["async def fetch_supplier_offer"],
+    )
+
+    assert findings[0].matched is True
+    assert findings[0].kind == "function"
+    assert findings[0].evidence_cells == [1]
+
+
+def test_match_code_markers_matches_bare_identifier_against_features() -> None:
+    findings = match_code_markers(
+        [
+            code_cell(
+                4,
+                """
+import json
+
+def parse_supplier_offer(raw_offer):
+    return json.loads(raw_offer)
+""",
+            )
+        ],
+        ["json.loads", "json", "parse_supplier_offer"],
+    )
+
+    assert [finding.matched for finding in findings] == [True, True, True]
+    assert [finding.evidence_cells for finding in findings] == [[4], [4], [4]]
+
+
+def test_match_code_markers_uses_source_substring_for_non_identifier_marker() -> None:
+    findings = match_code_markers(
+        [
+            code_cell(
+                2,
+                """
+result = {
+    "recommendation": "choose supplier A",
+}
+""",
+            )
+        ],
+        ['"recommendation": "choose supplier A"'],
+    )
+
+    assert findings[0].matched is True
+    assert findings[0].kind == "source"
+    assert findings[0].evidence_cells == [2]
+
+
+def test_match_code_markers_reports_missing_marker() -> None:
+    findings = match_code_markers(
+        [code_cell(5, "class SupplierOffer:\n    pass\n")],
+        ["def parse_supplier_offer"],
+    )
+
+    assert findings[0].matched is False
+    assert findings[0].kind == "function"
+    assert findings[0].evidence_cells == []
+    assert "Missing" in findings[0].comment
+
+
+def test_match_code_markers_uses_fallback_features_for_invalid_python() -> None:
+    findings = match_code_markers(
+        [
+            code_cell(
+                6,
+                """
+class SupplierOffer
+def parse_supplier_offer(
+""",
+            )
+        ],
+        ["class SupplierOffer", "def parse_supplier_offer"],
+    )
+
+    assert [finding.matched for finding in findings] == [True, True]
+    assert [finding.evidence_cells for finding in findings] == [[6], [6]]
+
+
+def code_cell(index: int, source: str) -> NotebookCell:
+    return NotebookCell(
+        index=index,
+        cell_type="code",
+        source=source,
+        normalized_source=source.strip(),
+        code_features=extract_code_features(source),
+    )
