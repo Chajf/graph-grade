@@ -10,8 +10,10 @@ from app.models import (
     PartSpec,
     ParsedNotebook,
     RequirementEvidence,
+    RequirementGrade,
     RequirementSpec,
     SectionEvidence,
+    SectionGrade,
     SharePointStudentSubmission,
 )
 
@@ -243,3 +245,47 @@ def test_section_evidence_model_groups_cells_outputs_and_errors() -> None:
     assert evidence.errors[0].ename == "ValueError"
     assert dumped["cells"][0]["cell_type"] == "markdown"
     assert dumped["errors"][0]["traceback"] == ["Traceback line"]
+
+
+def test_grade_models_preserve_requirement_order_and_serialize() -> None:
+    code_grade = RequirementGrade(
+        requirement_id="lab7_part02_supplier_offer_schema",
+        bucket="code",
+        points_awarded=4,
+        points_possible=4,
+        status="full",
+        evidence_cells=[2],
+        comment="Matched all required code markers.",
+        confidence="high",
+    )
+    markdown_grade = RequirementGrade(
+        requirement_id="lab7_part02_tools_reflection",
+        bucket="markdown",
+        points_awarded=0,
+        points_possible=8,
+        status="missing",
+        evidence_cells=[],
+        comment="Required reflection text was not found.",
+        confidence="medium",
+    )
+
+    section_grade = SectionGrade(
+        part_id="02",
+        title="Tools: parsing, TOPSIS, and LP allocation",
+        points_awarded=code_grade.points_awarded + markdown_grade.points_awarded,
+        points_possible=code_grade.points_possible + markdown_grade.points_possible,
+        requirement_grades=[code_grade, markdown_grade],
+        summary="Preliminary deterministic score: 4.0 / 12.0.",
+    )
+
+    dumped = section_grade.model_dump(mode="json")
+
+    assert [grade.requirement_id for grade in section_grade.requirement_grades] == [
+        "lab7_part02_supplier_offer_schema",
+        "lab7_part02_tools_reflection",
+    ]
+    assert section_grade.points_awarded == 4
+    assert section_grade.points_possible == 12
+    assert dumped["requirement_grades"][0]["bucket"] == "code"
+    assert dumped["requirement_grades"][0]["evidence_cells"] == [2]
+    assert dumped["requirement_grades"][1]["status"] == "missing"
