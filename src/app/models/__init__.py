@@ -24,6 +24,13 @@ from app.models.evidence import (
     SecretFinding,
     SectionEvidence,
 )
+from app.models.grades import (
+    GradeBucket,
+    GradeConfidence,
+    GradeStatus,
+    RequirementGrade,
+    SectionGrade,
+)
 
 __all__ = [
     "ApiScoreEvidence",
@@ -32,6 +39,9 @@ __all__ = [
     "CodeFeatures",
     "CodeMarkerFinding",
     "EvidenceIndex",
+    "GradeBucket",
+    "GradeConfidence",
+    "GradeStatus",
     "LabSpec",
     "NotebookCell",
     "NotebookError",
@@ -40,8 +50,10 @@ __all__ = [
     "PartSpec",
     "ParsedNotebook",
     "RequirementEvidence",
+    "RequirementGrade",
     "RequirementSpec",
     "SecretFinding",
     "SectionEvidence",
+    "SectionGrade",
     "SharePointStudentSubmission",
 ]

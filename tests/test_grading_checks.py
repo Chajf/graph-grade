@@ -9,10 +9,16 @@ from app.models import (
     NotebookOutput,
     PartSpec,
     ParsedNotebook,
+    RequirementEvidence,
     RequirementSpec,
 )
 from app.services.evidence import build_evidence_index
-from app.services.grading_checks import run_named_check, run_result_checks
+from app.services.grading_checks import (
+    check_markdown_requirement,
+    has_non_placeholder_markdown,
+    run_named_check,
+    run_result_checks,
+)
 from app.services.notebook_splitter import split_notebook_by_parts
 
 
@@ -187,6 +193,53 @@ def test_run_result_checks_returns_one_result_per_requirement_check() -> None:
 
     assert [result.check_name for result in results] == requirement.checks
     assert [result.passed for result in results] == [True, True, False]
+
+
+def test_check_markdown_requirement_passes_for_matching_non_placeholder_text() -> None:
+    section = section_with_cells(
+        [
+            markdown_cell(
+                0,
+                "## Reflection\n"
+                "Wymagany komentarz - Część 2\n"
+                "Parser errors can change supplier ranking and allocation decisions.",
+            )
+        ]
+    )
+    requirement = RequirementSpec(
+        id="reflection",
+        description="Explains parser risk.",
+        points=3,
+        evidence=RequirementEvidence(heading_or_text="Wymagany komentarz - Część 2"),
+    )
+
+    result = check_markdown_requirement(section, requirement)
+
+    assert result.passed is True
+    assert result.evidence_cells == [0]
+
+
+def test_check_markdown_requirement_fails_for_placeholder_text() -> None:
+    section = section_with_cells(
+        [markdown_cell(0, "## Reflection\nWymagany komentarz - Część 2\nTODO")]
+    )
+    requirement = RequirementSpec(
+        id="reflection",
+        description="Explains parser risk.",
+        points=3,
+        evidence=RequirementEvidence(heading_or_text="Wymagany komentarz - Część 2"),
+    )
+
+    result = check_markdown_requirement(section, requirement)
+
+    assert result.passed is False
+    assert result.evidence_cells == [0]
+
+
+def test_has_non_placeholder_markdown_rejects_empty_and_placeholder_text() -> None:
+    assert has_non_placeholder_markdown("") is False
+    assert has_non_placeholder_markdown("TODO") is False
+    assert has_non_placeholder_markdown("Concrete reflection about parser risk.") is True
 
 
 def section_with_cells(cells: list[NotebookCell]):

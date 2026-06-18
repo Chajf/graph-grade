@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 
 from app.models import CheckResult, EvidenceIndex, RequirementSpec, SectionEvidence
@@ -19,6 +20,9 @@ OUTPUT_PRESENCE_CHECKS = {
     "mini_rag_outputs_present",
     "metrics_outputs_present",
 }
+PLACEHOLDER_MARKDOWN_RE = re.compile(
+    r"(?i)\b(todo|tbd|lorem ipsum|uzupe[łl]ni[cć]|do uzupe[łl]nienia)\b|^\s*[.\-_* ]{0,12}\s*$"
+)
 
 def run_named_check(
     check_name: str,
@@ -46,6 +50,53 @@ def run_result_checks(
         run_named_check(check_name, section, evidence_index)
         for check_name in requirement.checks
     ]
+
+
+def check_markdown_requirement(
+    section: SectionEvidence,
+    requirement: RequirementSpec,
+) -> CheckResult:
+    expected_text = requirement.evidence.heading_or_text
+    matching_cells = _markdown_cells_matching_requirement(section, expected_text)
+    evidence_cells = [cell.index for cell in matching_cells]
+
+    if not matching_cells:
+        return CheckResult(
+            check_name="markdown_evidence_present",
+            passed=False,
+            comment=_missing_markdown_comment(expected_text),
+            severity="warning",
+        )
+
+    non_placeholder_cells = [
+        cell
+        for cell in matching_cells
+        if has_non_placeholder_markdown(
+            _markdown_answer_text(cell.source, expected_text),
+        )
+    ]
+    if not non_placeholder_cells:
+        return CheckResult(
+            check_name="markdown_not_placeholder",
+            passed=False,
+            evidence_cells=evidence_cells,
+            comment="Markdown evidence was found, but it looks empty or placeholder-only.",
+            severity="warning",
+        )
+
+    return CheckResult(
+        check_name="markdown_not_placeholder",
+        passed=True,
+        evidence_cells=[cell.index for cell in non_placeholder_cells],
+        comment="Markdown evidence is present and does not look placeholder-only.",
+    )
+
+
+def has_non_placeholder_markdown(text: str) -> bool:
+    normalized = _normalize_markdown_text(text)
+    if not normalized:
+        return False
+    return PLACEHOLDER_MARKDOWN_RE.fullmatch(normalized) is None
 
 
 def _check_required_code_cells_executed(section: SectionEvidence) -> CheckResult:
@@ -161,6 +212,45 @@ def _cell_has_visible_output(cell) -> bool:
     if cell.output_text.strip():
         return True
     return any(output.text.strip() or output.data for output in cell.outputs)
+
+
+def _markdown_cells_matching_requirement(section: SectionEvidence, expected_text: str | None):
+    if not expected_text:
+        return section.markdown_cells
+
+    normalized_expected = _normalize_markdown_text(expected_text)
+    return [
+        cell
+        for cell in section.markdown_cells
+        if normalized_expected in _normalize_markdown_text(cell.source)
+    ]
+
+
+def _normalize_markdown_text(text: str) -> str:
+    return " ".join(text.strip().lower().split())
+
+
+def _markdown_answer_text(text: str, expected_text: str | None) -> str:
+    answer_lines = []
+    normalized_expected = _normalize_markdown_text(expected_text or "")
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("#"):
+            continue
+        if normalized_expected and _normalize_markdown_text(stripped) == normalized_expected:
+            continue
+        answer_lines.append(stripped)
+
+    return "\n".join(answer_lines)
+
+
+def _missing_markdown_comment(expected_text: str | None) -> str:
+    if expected_text:
+        return f"Required markdown evidence `{expected_text}` was not found."
+    return "No markdown evidence found in this section."
 
 
 def _missing_execution_comment(section: SectionEvidence, missing_cells: list[int]) -> str:
