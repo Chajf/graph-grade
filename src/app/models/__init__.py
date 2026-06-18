@@ -16,11 +16,22 @@ from app.models.submissions import (
     NotebookResolutionIssue,
     SharePointStudentSubmission,
 )
-from app.models.evidence import SectionEvidence
+from app.models.evidence import (
+    ApiScoreEvidence,
+    CheckResult,
+    CodeMarkerFinding,
+    EvidenceIndex,
+    SecretFinding,
+    SectionEvidence,
+)
 
 __all__ = [
+    "ApiScoreEvidence",
     "CellRangeSpec",
+    "CheckResult",
     "CodeFeatures",
+    "CodeMarkerFinding",
+    "EvidenceIndex",
     "LabSpec",
     "NotebookCell",
     "NotebookError",
@@ -30,6 +41,7 @@ __all__ = [
     "ParsedNotebook",
     "RequirementEvidence",
     "RequirementSpec",
+    "SecretFinding",
     "SectionEvidence",
     "SharePointStudentSubmission",
 ]
