@@ -3,8 +3,12 @@ from pathlib import Path
 from app.models import (
     CellRangeSpec,
     LabSpec,
+    NotebookCell,
+    NotebookError,
+    NotebookOutput,
     NotebookResolutionIssue,
     PartSpec,
+    ParsedNotebook,
     RequirementEvidence,
     RequirementSpec,
     SharePointStudentSubmission,
@@ -105,3 +109,87 @@ def test_sharepoint_submission_model_marks_resolved_with_notebook() -> None:
     )
 
     assert submission.resolved is True
+
+
+def test_parsed_notebook_model_preserves_ordered_cells() -> None:
+    error = NotebookError(
+        ename="ValueError",
+        evalue="bad value",
+        traceback=["Traceback line"],
+    )
+    stdout = NotebookOutput(
+        output_type="stream",
+        name="stdout",
+        text="hello\n",
+    )
+    error_output = NotebookOutput(
+        output_type="error",
+        text="ValueError: bad value",
+        error=error,
+    )
+
+    notebook = ParsedNotebook(
+        path=Path("/submissions/lab7.ipynb"),
+        metadata={"kernelspec": {"name": "python3"}},
+        cells=[
+            NotebookCell(
+                index=0,
+                cell_type="markdown",
+                source="# Lab 7\nIntro",
+                normalized_source="# Lab 7\nIntro",
+                headings=["Lab 7"],
+            ),
+            NotebookCell(
+                index=1,
+                cell_type="code",
+                source="print('hello')",
+                normalized_source="print('hello')",
+                execution_count=1,
+                outputs=[stdout, error_output],
+                output_text="hello\nValueError: bad value",
+                errors=[error],
+            ),
+            NotebookCell(
+                index=2,
+                cell_type="raw",
+                source="raw notes",
+                normalized_source="raw notes",
+            ),
+        ],
+    )
+
+    assert notebook.path == Path("/submissions/lab7.ipynb")
+    assert notebook.metadata["kernelspec"]["name"] == "python3"
+    assert [cell.index for cell in notebook.cells] == [0, 1, 2]
+    assert [cell.cell_type for cell in notebook.cells] == ["markdown", "code", "raw"]
+    assert notebook.cells[0].headings == ["Lab 7"]
+    assert notebook.cells[1].execution_count == 1
+    assert notebook.cells[1].outputs[0].text == "hello\n"
+    assert notebook.cells[1].errors[0].ename == "ValueError"
+
+
+def test_parsed_notebook_model_serializes_paths_and_outputs() -> None:
+    notebook = ParsedNotebook(
+        path=Path("/submissions/lab7.ipynb"),
+        cells=[
+            NotebookCell(
+                index=0,
+                cell_type="code",
+                source="x = 1",
+                normalized_source="x = 1",
+                outputs=[
+                    NotebookOutput(
+                        output_type="execute_result",
+                        text="1",
+                        data={"text/plain": "1"},
+                    )
+                ],
+            )
+        ],
+    )
+
+    dumped = notebook.model_dump(mode="json")
+
+    assert dumped["path"] == "/submissions/lab7.ipynb"
+    assert dumped["cells"][0]["cell_type"] == "code"
+    assert dumped["cells"][0]["outputs"][0]["data"] == {"text/plain": "1"}

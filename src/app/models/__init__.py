@@ -5,6 +5,13 @@ from app.models.specs import (
     RequirementEvidence,
     RequirementSpec,
 )
+from app.models.notebooks import (
+    CodeFeatures,
+    NotebookCell,
+    NotebookError,
+    NotebookOutput,
+    ParsedNotebook,
+)
 from app.models.submissions import (
     NotebookResolutionIssue,
     SharePointStudentSubmission,
@@ -12,9 +19,14 @@ from app.models.submissions import (
 
 __all__ = [
     "CellRangeSpec",
+    "CodeFeatures",
     "LabSpec",
+    "NotebookCell",
+    "NotebookError",
+    "NotebookOutput",
     "NotebookResolutionIssue",
     "PartSpec",
+    "ParsedNotebook",
     "RequirementEvidence",
     "RequirementSpec",
     "SharePointStudentSubmission",

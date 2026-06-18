@@ -5,8 +5,9 @@ import json
 from pathlib import Path
 from typing import Any, Sequence
 
-from app.models import LabSpec, NotebookResolutionIssue, SharePointStudentSubmission
+from app.models import LabSpec, NotebookResolutionIssue, ParsedNotebook, SharePointStudentSubmission
 from app.repositories import GradingSpecRepository, SharePointRepository
+from app.services.notebook_parser import parse_notebook
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -15,6 +16,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "grade-group":
         return run_grade_group(args)
+    if args.command == "parse-notebook":
+        return run_parse_notebook(args)
 
     parser.print_help()
     return 2
@@ -37,6 +40,12 @@ def build_parser() -> argparse.ArgumentParser:
     grade_group.add_argument("--lab", required=True)
     grade_group.add_argument("--specs-dir", type=Path, default=Path("work/grading_specs"))
 
+    parse_notebook_parser = subparsers.add_parser(
+        "parse-notebook",
+        help="Parse one notebook and print a compact JSON summary.",
+    )
+    parse_notebook_parser.add_argument("--notebook-path", type=Path, required=True)
+
     return parser
 
 
@@ -55,6 +64,40 @@ def run_grade_group(args: argparse.Namespace) -> int:
     }
     print(json.dumps(output, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
+
+
+def run_parse_notebook(args: argparse.Namespace) -> int:
+    notebook = parse_notebook(args.notebook_path)
+    print(json.dumps(serialize_notebook_summary(notebook), ensure_ascii=False, indent=2, sort_keys=True))
+    return 0
+
+
+def serialize_notebook_summary(notebook: ParsedNotebook) -> dict[str, Any]:
+    code_cells = [cell for cell in notebook.cells if cell.cell_type == "code"]
+    markdown_cells = [cell for cell in notebook.cells if cell.cell_type == "markdown"]
+    raw_cells = [cell for cell in notebook.cells if cell.cell_type == "raw"]
+
+    return {
+        "path": str(notebook.path),
+        "total_cells": len(notebook.cells),
+        "code_cell_count": len(code_cells),
+        "markdown_cell_count": len(markdown_cells),
+        "raw_cell_count": len(raw_cells),
+        "output_count": sum(len(cell.outputs) for cell in notebook.cells),
+        "error_count": sum(len(cell.errors) for cell in notebook.cells),
+        "functions": _unique_feature_values(
+            function
+            for cell in code_cells
+            if cell.code_features is not None
+            for function in cell.code_features.functions
+        ),
+        "classes": _unique_feature_values(
+            class_name
+            for cell in code_cells
+            if cell.code_features is not None
+            for class_name in cell.code_features.classes
+        ),
+    }
 
 
 def serialize_lab_spec(lab_spec: LabSpec) -> dict[str, Any]:
@@ -99,6 +142,18 @@ def serialize_path(path: Path | None) -> str | None:
         return None
 
     return str(path)
+
+
+def _unique_feature_values(values: Any) -> list[str]:
+    seen: set[str] = set()
+    unique_values: list[str] = []
+
+    for value in values:
+        if value not in seen:
+            seen.add(value)
+            unique_values.append(value)
+
+    return unique_values
 
 
 if __name__ == "__main__":
