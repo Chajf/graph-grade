@@ -31,18 +31,30 @@ from app.models.grades import (
     RequirementGrade,
     SectionGrade,
 )
+from app.models.judges import (
+    CodeJudgeContext,
+    CodeJudgeResult,
+    JudgeResult,
+    MarkdownJudgeContext,
+    MarkdownJudgeResult,
+)
 
 __all__ = [
     "ApiScoreEvidence",
     "CellRangeSpec",
     "CheckResult",
     "CodeFeatures",
+    "CodeJudgeContext",
+    "CodeJudgeResult",
     "CodeMarkerFinding",
     "EvidenceIndex",
     "GradeBucket",
     "GradeConfidence",
     "GradeStatus",
+    "JudgeResult",
     "LabSpec",
+    "MarkdownJudgeContext",
+    "MarkdownJudgeResult",
     "NotebookCell",
     "NotebookError",
     "NotebookOutput",
