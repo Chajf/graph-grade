@@ -2,6 +2,8 @@ from pathlib import Path
 
 from app.models import (
     CellRangeSpec,
+    CodeJudgeContext,
+    CodeJudgeResult,
     NotebookCell,
     NotebookOutput,
     PartSpec,
@@ -10,6 +12,7 @@ from app.models import (
     RequirementSpec,
 )
 from app.nodes.code_grader import grade_code_requirements
+from app.nodes.code_judge import judge_code_requirements
 from app.nodes.markdown_grader import grade_markdown_requirements
 from app.nodes.results_grader import grade_result_requirements
 from app.nodes.section_synthesizer import synthesize_section_grade
@@ -95,6 +98,148 @@ def test_grade_code_requirements_marks_missing_without_markers() -> None:
 
     assert result["code_grades"][0].points_awarded == 0
     assert result["code_grades"][0].status == "missing"
+
+
+def test_judge_code_requirements_refines_deterministic_grade() -> None:
+    section = section_with_cells(
+        [
+            markdown_cell(0, "## Tools"),
+            code_cell(1, "class SupplierOffer:\n    pass\n"),
+        ]
+    )
+    part = part_with_requirements(
+        code_requirements=[
+            RequirementSpec(
+                id="code_schema",
+                description="Defines schema and parser.",
+                points=4,
+                evidence=RequirementEvidence(
+                    cell_markers=["class SupplierOffer", "def parse_supplier_offer"]
+                ),
+            )
+        ]
+    )
+    base_state = state(part, section)
+    base_state.update(grade_code_requirements(base_state))
+    code_judge = RecordingCodeJudge(
+        CodeJudgeResult(
+            points_awarded=3,
+            status="partial",
+            evidence_cells=[1],
+            reasoning="Class exists, but parser function is absent.",
+            comment="Schema is present, parser function is missing.",
+            confidence="medium",
+        )
+    )
+    base_state["code_judge"] = code_judge
+
+    result = judge_code_requirements(base_state)
+
+    judged_grade = result["code_grades"][0]
+    assert judged_grade.points_awarded == 3
+    assert judged_grade.points_possible == 4
+    assert judged_grade.status == "partial"
+    assert judged_grade.comment == "Schema is present, parser function is missing."
+    assert len(code_judge.contexts) == 1
+    judge_context = code_judge.contexts[0]
+    assert judge_context.requirement.id == "code_schema"
+    assert judge_context.deterministic_grade.points_awarded == 2
+    assert [finding.marker for finding in judge_context.marker_findings] == [
+        "class SupplierOffer",
+        "def parse_supplier_offer",
+    ]
+    assert [finding.matched for finding in judge_context.marker_findings] == [True, False]
+    assert [cell.index for cell in judge_context.code_cells] == [1]
+
+
+def test_judge_code_requirements_returns_deterministic_grade_without_judge() -> None:
+    section = section_with_cells(
+        [
+            markdown_cell(0, "## Tools"),
+            code_cell(1, "class SupplierOffer:\n    pass\n"),
+        ]
+    )
+    part = part_with_requirements(
+        code_requirements=[
+            RequirementSpec(
+                id="code_schema",
+                description="Defines schema.",
+                points=4,
+                evidence=RequirementEvidence(cell_markers=["class SupplierOffer"]),
+            )
+        ]
+    )
+    base_state = state(part, section)
+    base_state.update(grade_code_requirements(base_state))
+
+    result = judge_code_requirements(base_state)
+
+    assert result["code_grades"] == base_state["code_grades"]
+
+
+def test_judge_code_requirements_falls_back_to_deterministic_grade_on_error() -> None:
+    section = section_with_cells(
+        [
+            markdown_cell(0, "## Tools"),
+            code_cell(1, "class SupplierOffer:\n    pass\n"),
+        ]
+    )
+    part = part_with_requirements(
+        code_requirements=[
+            RequirementSpec(
+                id="code_schema",
+                description="Defines schema.",
+                points=4,
+                evidence=RequirementEvidence(cell_markers=["class SupplierOffer"]),
+            )
+        ]
+    )
+    base_state = state(part, section)
+    base_state.update(grade_code_requirements(base_state))
+    base_state["code_judge"] = FailingCodeJudge()
+
+    result = judge_code_requirements(base_state)
+
+    fallback_grade = result["code_grades"][0]
+    assert fallback_grade.points_awarded == 4
+    assert fallback_grade.status == "full"
+    assert fallback_grade.confidence == "low"
+    assert "Code judge failed; kept deterministic grade." in fallback_grade.comment
+
+
+def test_judge_code_requirements_clamps_points_to_requirement_points() -> None:
+    section = section_with_cells(
+        [
+            markdown_cell(0, "## Tools"),
+            code_cell(1, "class SupplierOffer:\n    pass\n"),
+        ]
+    )
+    part = part_with_requirements(
+        code_requirements=[
+            RequirementSpec(
+                id="code_schema",
+                description="Defines schema.",
+                points=4,
+                evidence=RequirementEvidence(cell_markers=["class SupplierOffer"]),
+            )
+        ]
+    )
+    base_state = state(part, section)
+    base_state.update(grade_code_requirements(base_state))
+    base_state["code_judge"] = RecordingCodeJudge(
+        CodeJudgeResult(
+            points_awarded=99,
+            status="full",
+            evidence_cells=[1],
+            reasoning="The judge over-awarded points.",
+            comment="Complete implementation.",
+            confidence="high",
+        )
+    )
+
+    result = judge_code_requirements(base_state)
+
+    assert result["code_grades"][0].points_awarded == 4
 
 
 def test_grade_markdown_requirements_awards_points_for_non_placeholder_text() -> None:
@@ -283,3 +428,18 @@ def part_with_requirements(
         markdown_requirements=markdown_requirements or [],
         result_requirements=result_requirements or [],
     )
+
+
+class RecordingCodeJudge:
+    def __init__(self, result: CodeJudgeResult) -> None:
+        self.result = result
+        self.contexts: list[CodeJudgeContext] = []
+
+    def judge_code(self, context: CodeJudgeContext) -> CodeJudgeResult:
+        self.contexts.append(context)
+        return self.result
+
+
+class FailingCodeJudge:
+    def judge_code(self, context: CodeJudgeContext) -> CodeJudgeResult:
+        raise RuntimeError("offline judge unavailable")
