@@ -24,6 +24,15 @@ class NotebookOutput(BaseModel):
     raw: dict[str, Any] = Field(default_factory=dict)
 
 
+class CodeFeatures(BaseModel):
+    functions: list[str] = Field(default_factory=list)
+    classes: list[str] = Field(default_factory=list)
+    imports: list[str] = Field(default_factory=list)
+    from_imports: list[str] = Field(default_factory=list)
+    calls: list[str] = Field(default_factory=list)
+    syntax_error: str | None = None
+
+
 class NotebookCell(BaseModel):
     index: int
     cell_type: CellType
@@ -34,7 +43,7 @@ class NotebookCell(BaseModel):
     outputs: list[NotebookOutput] = Field(default_factory=list)
     output_text: str = ""
     errors: list[NotebookError] = Field(default_factory=list)
-    code_features: Any | None = None
+    code_features: CodeFeatures | None = None
 
 
 class ParsedNotebook(BaseModel):

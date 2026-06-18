@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from app.models import NotebookCell, NotebookError, NotebookOutput, ParsedNotebook
+from app.services.code_features import extract_code_features
 
 
 HEADING_RE = re.compile(r"^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$")
@@ -54,6 +55,7 @@ def _parse_cell(index: int, raw_cell: dict[str, Any]) -> NotebookCell:
         outputs=outputs,
         output_text=output_text,
         errors=errors,
+        code_features=extract_code_features(source) if cell_type == "code" else None,
     )
 
 

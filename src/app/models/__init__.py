@@ -6,6 +6,7 @@ from app.models.specs import (
     RequirementSpec,
 )
 from app.models.notebooks import (
+    CodeFeatures,
     NotebookCell,
     NotebookError,
     NotebookOutput,
@@ -18,6 +19,7 @@ from app.models.submissions import (
 
 __all__ = [
     "CellRangeSpec",
+    "CodeFeatures",
     "LabSpec",
     "NotebookCell",
     "NotebookError",

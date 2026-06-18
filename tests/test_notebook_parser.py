@@ -82,6 +82,8 @@ def test_parse_notebook_extracts_cells_outputs_and_errors(tmp_path: Path) -> Non
     assert len(code_cell.errors) == 1
     assert code_cell.errors[0].ename == "ValueError"
     assert code_cell.errors[0].traceback == ["Traceback line"]
+    assert code_cell.code_features is not None
+    assert code_cell.code_features.calls == ["print"]
 
 
 def test_parse_notebook_extracts_display_data_and_unknown_outputs(tmp_path: Path) -> None:
@@ -156,3 +158,38 @@ def test_parse_notebook_rejects_missing_cells(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="missing top-level cells list"):
         parse_notebook(notebook_path)
+
+
+def test_parse_notebook_adds_code_features_to_code_cells(tmp_path: Path) -> None:
+    notebook_path = tmp_path / "features.ipynb"
+    write_notebook(
+        notebook_path,
+        [
+            {
+                "cell_type": "code",
+                "source": [
+                    "import json\n",
+                    "from langchain.agents import create_agent\n",
+                    "class AgentFactory:\n",
+                    "    pass\n",
+                    "def build_agent():\n",
+                    "    return create_agent()\n",
+                ],
+            },
+            {
+                "cell_type": "markdown",
+                "source": "## Notes",
+            },
+        ],
+    )
+
+    parsed = parse_notebook(notebook_path)
+
+    features = parsed.cells[0].code_features
+    assert features is not None
+    assert features.functions == ["build_agent"]
+    assert features.classes == ["AgentFactory"]
+    assert features.imports == ["json"]
+    assert features.from_imports == ["langchain.agents.create_agent"]
+    assert features.calls == ["create_agent"]
+    assert parsed.cells[1].code_features is None
