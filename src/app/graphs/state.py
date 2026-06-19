@@ -59,3 +59,25 @@ class GradingGraphState(TypedDict):
     lab_grade_path: NotRequired[Path]
     lab_feedback_path: NotRequired[Path]
     student_summary_path: NotRequired[Path]
+
+
+class BatchGraphState(TypedDict):
+    prace_root: Path
+    specs_root: Path
+    output_root: Path
+    lab_id: str
+    group_id: str
+    lab_spec: NotRequired[LabSpec]
+    submissions: NotRequired[list[SharePointStudentSubmission]]
+    final_grades: NotRequired[Annotated[list[FinalGrade], operator.add]]
+    batch_errors: NotRequired[Annotated[list[str], operator.add]]
+    summary_csv_path: NotRequired[Path]
+    summary_md_path: NotRequired[Path]
+
+
+class BatchStudentGradingPayload(TypedDict):
+    lab_spec: LabSpec
+    submission: SharePointStudentSubmission
+    output_root: Path
+    final_grades: NotRequired[Annotated[list[FinalGrade], operator.add]]
+    batch_errors: NotRequired[Annotated[list[str], operator.add]]
