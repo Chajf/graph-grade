@@ -40,7 +40,7 @@ class SectionGradingPayload(TypedDict):
     evidence_index: EvidenceIndex
     code_judge: NotRequired[CodeJudgeProtocol]
     markdown_judge: NotRequired[MarkdownJudgeProtocol]
-    section_grades: Annotated[list[SectionGrade], operator.add]
+    section_grades: NotRequired[Annotated[list[SectionGrade], operator.add]]
 
 
 class GradingGraphState(TypedDict):
@@ -52,7 +52,7 @@ class GradingGraphState(TypedDict):
     evidence_index: NotRequired[EvidenceIndex]
     code_judge: NotRequired[CodeJudgeProtocol]
     markdown_judge: NotRequired[MarkdownJudgeProtocol]
-    section_grades: Annotated[list[SectionGrade], operator.add]
+    section_grades: NotRequired[Annotated[list[SectionGrade], operator.add]]
     flags: NotRequired[list[str]]
     final_grade: NotRequired[FinalGrade]
     lab_output_dir: NotRequired[Path]
