@@ -66,6 +66,7 @@ def test_phase6_section_graph_runs_optional_structured_judges() -> None:
     final_state = create_section_graph().invoke(state)
     section_grade = final_state["section_grade"]
 
+    assert final_state["section_grades"] == [section_grade]
     assert len(code_judge.contexts) == 1
     assert code_judge.contexts[0].deterministic_grade.points_awarded == 2
     assert [finding.matched for finding in code_judge.contexts[0].marker_findings] == [
@@ -98,6 +99,7 @@ def test_phase6_section_graph_runs_optional_structured_judges() -> None:
     assert requirement_grades[2].status == "full"
     assert section_grade.points_awarded == 9
     assert section_grade.points_possible == 12
+    assert section_grade.summary == "Preliminary deterministic score: 10 / 12."
 
 
 def test_phase6_section_graph_runs_without_judges() -> None:
