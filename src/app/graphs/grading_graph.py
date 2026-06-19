@@ -56,6 +56,8 @@ def fan_out_sections(state: GradingGraphState) -> list[Send] | str:
             "section": section,
             "evidence_index": state["evidence_index"],
         }
+        if "api_response_judge" in state:
+            payload["api_response_judge"] = state["api_response_judge"]
         if "code_judge" in state:
             payload["code_judge"] = state["code_judge"]
         if "markdown_judge" in state:

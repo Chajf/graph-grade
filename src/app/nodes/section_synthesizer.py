@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-from app.graphs.state import SectionGraphState
+from typing import TYPE_CHECKING
+
 from app.models import SectionGrade
+
+if TYPE_CHECKING:
+    from app.graphs.state import SectionGraphState
 
 
 def synthesize_section_grade(state: SectionGraphState) -> dict[str, object]:

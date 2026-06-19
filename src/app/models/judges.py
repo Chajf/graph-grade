@@ -28,6 +28,10 @@ class MarkdownJudgeResult(JudgeResult):
     pass
 
 
+class ApiResponseJudgeResult(JudgeResult):
+    pass
+
+
 class CodeJudgeContext(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -51,3 +55,17 @@ class MarkdownJudgeContext(BaseModel):
     deterministic_grade: RequirementGrade
     deterministic_check: CheckResult
     markdown_cells: list[NotebookCell] = Field(default_factory=list)
+
+
+class ApiResponseJudgeContext(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    lab_id: str
+    part_id: str
+    part_title: str
+    requirement: RequirementSpec
+    deterministic_grade: RequirementGrade
+    deterministic_checks: list[CheckResult] = Field(default_factory=list)
+    code_cells: list[NotebookCell] = Field(default_factory=list)
+    markdown_cells: list[NotebookCell] = Field(default_factory=list)
+    evidence_index: EvidenceIndex

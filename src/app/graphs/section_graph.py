@@ -5,6 +5,7 @@ from typing import Any
 from langgraph.graph import END, START, StateGraph
 
 from app.graphs.state import SectionGraphOutput, SectionGraphState
+from app.nodes.api_response_judge import judge_api_response_requirements
 from app.nodes.code_grader import grade_code_requirements
 from app.nodes.code_judge import judge_code_requirements
 from app.nodes.markdown_grader import grade_markdown_requirements
@@ -23,6 +24,7 @@ def create_section_graph() -> Any:
     graph.add_node("markdown_grader", grade_markdown_requirements)
     graph.add_node("markdown_judge", judge_markdown_requirements)
     graph.add_node("results_grader", grade_result_requirements)
+    graph.add_node("api_response_judge", judge_api_response_requirements)
     graph.add_node("section_synthesizer", synthesize_section_grade)
 
     graph.add_edge(START, "section_loader")
@@ -34,7 +36,8 @@ def create_section_graph() -> Any:
     graph.add_edge("code_judge", "section_synthesizer")
     graph.add_conditional_edges("markdown_grader", route_after_markdown_grader)
     graph.add_edge("markdown_judge", "section_synthesizer")
-    graph.add_edge("results_grader", "section_synthesizer")
+    graph.add_conditional_edges("results_grader", route_after_results_grader)
+    graph.add_edge("api_response_judge", "section_synthesizer")
     graph.add_edge("section_synthesizer", END)
 
     return graph.compile()
@@ -59,6 +62,14 @@ def route_after_markdown_grader(state: SectionGraphState) -> str:
     return (
         "markdown_judge"
         if state.get("markdown_judge") is not None
+        else "section_synthesizer"
+    )
+
+
+def route_after_results_grader(state: SectionGraphState) -> str:
+    return (
+        "api_response_judge"
+        if state.get("api_response_judge") is not None
         else "section_synthesizer"
     )
 

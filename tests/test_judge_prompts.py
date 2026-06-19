@@ -5,6 +5,9 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import ValidationError
 
 from app.models import (
+    ApiResponseJudgeContext,
+    ApiResponseJudgeResult,
+    ApiScoreEvidence,
     CheckResult,
     CodeJudgeContext,
     CodeJudgeResult,
@@ -17,6 +20,7 @@ from app.models import (
     RequirementGrade,
     RequirementSpec,
 )
+from app.prompts.api_response_judge import build_api_response_judge_messages
 from app.prompts.code_judge import build_code_judge_messages
 from app.prompts.markdown_judge import build_markdown_judge_messages
 
@@ -107,6 +111,49 @@ def test_markdown_judge_result_validates_status_confidence_and_points() -> None:
         )
 
 
+def test_api_response_judge_result_validates_status_confidence_and_points() -> None:
+    valid = ApiResponseJudgeResult(
+        points_awarded=4,
+        status="partial",
+        evidence_cells=[4],
+        reasoning="The score payload is visible but shows a failed case.",
+        comment="API response is visible but only partially correct.",
+        confidence="medium",
+    )
+
+    assert valid.points_awarded == 4
+
+    with pytest.raises(ValidationError):
+        ApiResponseJudgeResult(
+            points_awarded=-1,
+            status="partial",
+            evidence_cells=[4],
+            reasoning="Negative points are invalid.",
+            comment="Negative points are invalid.",
+            confidence="medium",
+        )
+
+    with pytest.raises(ValidationError):
+        ApiResponseJudgeResult(
+            points_awarded=1,
+            status="complete",
+            evidence_cells=[4],
+            reasoning="Invalid status.",
+            comment="Invalid status.",
+            confidence="medium",
+        )
+
+    with pytest.raises(ValidationError):
+        ApiResponseJudgeResult(
+            points_awarded=1,
+            status="partial",
+            evidence_cells=[4],
+            reasoning="Invalid confidence.",
+            comment="Invalid confidence.",
+            confidence="sure",
+        )
+
+
 def test_code_judge_prompt_separates_system_instructions_from_human_context() -> None:
     context = code_context()
 
@@ -151,6 +198,32 @@ def test_markdown_judge_prompt_separates_system_instructions_from_human_context(
     assert human_payload["deterministic_check"]["check_name"] == "markdown_not_placeholder"
     assert human_payload["markdown_cells"][0]["index"] == 3
     assert "business risk" in human_payload["markdown_cells"][0]["source"]
+    assert "unrelated section" not in str(messages[1].content)
+
+
+def test_api_response_judge_prompt_separates_system_instructions_from_human_context() -> None:
+    context = api_response_context()
+
+    messages = build_api_response_judge_messages(context)
+
+    assert isinstance(messages[0], SystemMessage)
+    assert isinstance(messages[1], HumanMessage)
+    assert "Do not execute code" in str(messages[0].content)
+    assert "A visible API score alone is not sufficient" in str(messages[0].content)
+    assert "reasoning" in str(messages[0].content)
+    assert "internal logging" in str(messages[0].content)
+    assert "api_score_quality" not in str(messages[0].content)
+
+    human_payload = json.loads(str(messages[1].content))
+    assert human_payload["lab_id"] == "lab7"
+    assert human_payload["requirement"]["id"] == "api_score_quality"
+    assert human_payload["requirement"]["points"] == 5
+    assert human_payload["deterministic_grade"]["evidence_cells"] == [4]
+    assert human_payload["deterministic_checks"][0]["check_name"] == "api_response_visible"
+    assert human_payload["api_scores"][0]["score"] == 2
+    assert human_payload["code_cells"][0]["index"] == 4
+    assert "api.score" in human_payload["code_cells"][0]["source"]
+    assert human_payload["markdown_cells"][0]["index"] == 3
     assert "unrelated section" not in str(messages[1].content)
 
 
@@ -254,4 +327,69 @@ def markdown_context() -> MarkdownJudgeContext:
                 ),
             )
         ],
+    )
+
+
+def api_response_context() -> ApiResponseJudgeContext:
+    requirement = RequirementSpec(
+        id="api_score_quality",
+        description="Shows a valid API response for the required scenario.",
+        points=5,
+        expected_outputs=["A score payload with successful details."],
+        quality_criteria=["The score should demonstrate the scenario passed."],
+        checks=["api_response_visible"],
+    )
+    deterministic_grade = RequirementGrade(
+        requirement_id=requirement.id,
+        bucket="results",
+        points_awarded=5,
+        points_possible=5,
+        status="full",
+        evidence_cells=[4],
+        comment="Visible API score output found in cell(s): 4.",
+        confidence="high",
+    )
+    return ApiResponseJudgeContext(
+        lab_id="lab7",
+        part_id="02",
+        part_title="Tools",
+        requirement=requirement,
+        deterministic_grade=deterministic_grade,
+        deterministic_checks=[
+            CheckResult(
+                check_name="api_response_visible",
+                passed=True,
+                evidence_cells=[4],
+                comment="Visible API score output found in cell(s): 4.",
+            )
+        ],
+        markdown_cells=[
+            NotebookCell(
+                index=3,
+                cell_type="markdown",
+                source="The API score is shown below.",
+                normalized_source="The API score is shown below.",
+            )
+        ],
+        code_cells=[
+            NotebookCell(
+                index=4,
+                cell_type="code",
+                source="response = api.score(payload)\nprint(response)\n",
+                normalized_source="response = api.score(payload)\nprint(response)\n",
+                execution_count=2,
+                output_text='{"score": 2, "max_score": 10}',
+            )
+        ],
+        evidence_index=EvidenceIndex(
+            api_scores=[
+                ApiScoreEvidence(
+                    cell_index=4,
+                    score=2,
+                    max_score=10,
+                    details={"valid": False},
+                    raw_text='{"score": 2, "max_score": 10}',
+                )
+            ]
+        ),
     )

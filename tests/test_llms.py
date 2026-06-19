@@ -6,6 +6,8 @@ import pytest
 from pydantic import ValidationError
 
 from app.models import (
+    ApiResponseJudgeContext,
+    ApiResponseJudgeResult,
     CheckResult,
     CodeJudgeContext,
     CodeJudgeResult,
@@ -19,6 +21,7 @@ from app.models import (
 from app.services import llms
 from app.services.llms import (
     JudgeModelSettings,
+    LangChainApiResponseJudge,
     LangChainCodeJudge,
     LangChainMarkdownJudge,
     create_chat_model,
@@ -98,6 +101,26 @@ def test_markdown_judge_validates_dict_response() -> None:
     assert chat_model.schema is MarkdownJudgeResult
     assert len(chat_model.messages) == 2
     assert "markdown_reflection" in str(chat_model.messages[1].content)
+
+
+def test_api_response_judge_invokes_structured_model_with_api_response_schema() -> None:
+    expected_result = ApiResponseJudgeResult(
+        points_awarded=3,
+        status="partial",
+        evidence_cells=[3],
+        reasoning="The score response is visible but shows incomplete correctness.",
+        comment="API response is partially correct.",
+        confidence="medium",
+    )
+    chat_model = StubChatModel(expected_result)
+    judge = LangChainApiResponseJudge(chat_model=chat_model)
+
+    result = judge.judge_api_response(api_response_context())
+
+    assert result == expected_result
+    assert chat_model.schema is ApiResponseJudgeResult
+    assert len(chat_model.messages) == 2
+    assert "api_score_quality" in str(chat_model.messages[1].content)
 
 
 def test_malformed_structured_response_fails_validation() -> None:
@@ -199,4 +222,47 @@ def markdown_context() -> MarkdownJudgeContext:
                 normalized_source="Parser failures create business risk.",
             )
         ],
+    )
+
+
+def api_response_context() -> ApiResponseJudgeContext:
+    requirement = RequirementSpec(
+        id="api_score_quality",
+        description="Shows a valid API response.",
+        points=5,
+        checks=["api_response_visible"],
+    )
+    return ApiResponseJudgeContext(
+        lab_id="lab7",
+        part_id="02",
+        part_title="Tools",
+        requirement=requirement,
+        deterministic_grade=RequirementGrade(
+            requirement_id=requirement.id,
+            bucket="results",
+            points_awarded=5,
+            points_possible=5,
+            status="full",
+            evidence_cells=[3],
+            comment="Visible API score output found.",
+            confidence="high",
+        ),
+        deterministic_checks=[
+            CheckResult(
+                check_name="api_response_visible",
+                passed=True,
+                evidence_cells=[3],
+                comment="Visible API score output found.",
+            )
+        ],
+        code_cells=[
+            NotebookCell(
+                index=3,
+                cell_type="code",
+                source="print(api_score)",
+                normalized_source="print(api_score)",
+                output_text='{"score": 3, "max_score": 5}',
+            )
+        ],
+        evidence_index=EvidenceIndex(),
     )

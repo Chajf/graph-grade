@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
-from app.graphs.state import SectionGraphState
 from app.models import (
     CheckResult,
     EvidenceIndex,
@@ -12,6 +12,9 @@ from app.models import (
     SectionEvidence,
 )
 from app.services.grading_checks import run_result_checks
+
+if TYPE_CHECKING:
+    from app.graphs.state import SectionGraphState
 
 
 def grade_result_requirements(state: SectionGraphState) -> dict[str, list[RequirementGrade]]:

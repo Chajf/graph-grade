@@ -15,6 +15,7 @@ from app.services.llms import (
     DEFAULT_JUDGE_PROVIDER,
     DEFAULT_JUDGE_TEMPERATURE,
     JudgeModelSettings,
+    create_api_response_judge,
     create_code_judge,
     create_markdown_judge,
 )
@@ -92,7 +93,7 @@ def add_judge_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--llm-judges",
         action="store_true",
-        help="Enable LLM code and markdown judge refinement.",
+        help="Enable LLM code, markdown, and API response judge refinement.",
     )
     parser.add_argument("--judge-model", default=DEFAULT_JUDGE_MODEL)
     parser.add_argument("--judge-provider", default=DEFAULT_JUDGE_PROVIDER)
@@ -187,6 +188,7 @@ def build_judge_state(args: argparse.Namespace) -> dict[str, object]:
         temperature=args.judge_temperature,
     )
     return {
+        "api_response_judge": create_api_response_judge(settings),
         "code_judge": create_code_judge(settings),
         "markdown_judge": create_markdown_judge(settings),
     }

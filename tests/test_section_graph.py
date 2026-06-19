@@ -2,6 +2,7 @@ from pathlib import Path
 
 from app.graphs.section_graph import (
     create_section_graph,
+    route_after_results_grader,
     route_to_grading_nodes,
 )
 from app.models import (
@@ -155,6 +156,30 @@ def test_route_to_grading_nodes_fans_out_to_all_applicable_branches() -> None:
     )
 
     assert route_to_grading_nodes(state) == ["code_grader", "markdown_grader"]
+
+
+def test_route_after_results_grader_uses_api_response_judge_when_available() -> None:
+    section = section_with_cells([markdown_cell(0, "## Tools")])
+    state = initialize_section_state(
+        part_with_requirements(
+            result_requirements=[
+                RequirementSpec(
+                    id="api_score_quality",
+                    description="Shows a valid API score response.",
+                    points=5,
+                    checks=["api_response_visible"],
+                )
+            ]
+        ),
+        section,
+        build_evidence_index(section),
+    )
+
+    assert route_after_results_grader(state) == "section_synthesizer"
+
+    state["api_response_judge"] = object()
+
+    assert route_after_results_grader(state) == "api_response_judge"
 
 
 def section_with_cells(cells: list[NotebookCell]):

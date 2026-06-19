@@ -34,6 +34,8 @@ from app.models.grades import (
     SectionGrade,
 )
 from app.models.judges import (
+    ApiResponseJudgeContext,
+    ApiResponseJudgeResult,
     CodeJudgeContext,
     CodeJudgeResult,
     JudgeResult,
@@ -43,6 +45,8 @@ from app.models.judges import (
 
 __all__ = [
     "ApiScoreEvidence",
+    "ApiResponseJudgeContext",
+    "ApiResponseJudgeResult",
     "CellRangeSpec",
     "CheckResult",
     "CodeFeatures",

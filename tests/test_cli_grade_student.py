@@ -3,7 +3,7 @@ from pathlib import Path
 
 import app.main as main_module
 from app.main import main
-from app.models import CodeJudgeResult, MarkdownJudgeResult
+from app.models import ApiResponseJudgeResult, CodeJudgeResult, MarkdownJudgeResult
 
 
 def test_grade_student_creates_grade_feedback_and_student_summary(
@@ -114,6 +114,11 @@ def test_grade_student_can_enable_llm_judges(
         captured_settings.append(("markdown", settings))
         return StubMarkdownJudge()
 
+    def create_api_response_judge(settings):
+        captured_settings.append(("api_response", settings))
+        return StubApiResponseJudge()
+
+    monkeypatch.setattr(main_module, "create_api_response_judge", create_api_response_judge)
     monkeypatch.setattr(main_module, "create_code_judge", create_code_judge)
     monkeypatch.setattr(main_module, "create_markdown_judge", create_markdown_judge)
 
@@ -146,6 +151,7 @@ def test_grade_student_can_enable_llm_judges(
     output = json.loads(capsys.readouterr().out)
     assert output["points_awarded"] == 10
     assert [(kind, settings.model, settings.model_provider, settings.temperature) for kind, settings in captured_settings] == [
+        ("api_response", "test/model", "test-provider", 0.2),
         ("code", "test/model", "test-provider", 0.2),
         ("markdown", "test/model", "test-provider", 0.2),
     ]
@@ -181,6 +187,18 @@ class StubMarkdownJudge:
             reasoning="Stub markdown judge.",
             comment="LLM markdown judge adjusted score.",
             confidence="high",
+        )
+
+
+class StubApiResponseJudge:
+    def judge_api_response(self, context):
+        return ApiResponseJudgeResult(
+            points_awarded=context.deterministic_grade.points_awarded,
+            status=context.deterministic_grade.status,
+            evidence_cells=context.deterministic_grade.evidence_cells,
+            reasoning="Stub API response judge.",
+            comment="LLM API response judge kept score.",
+            confidence=context.deterministic_grade.confidence,
         )
 
 

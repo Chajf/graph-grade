@@ -48,6 +48,8 @@ def fan_out_students(state: LaboratoryGraphState) -> list[Send] | str:
             "submission": submission,
             "output_root": state["output_root"],
         }
+        if "api_response_judge" in state:
+            payload["api_response_judge"] = state["api_response_judge"]
         if "code_judge" in state:
             payload["code_judge"] = state["code_judge"]
         if "markdown_judge" in state:

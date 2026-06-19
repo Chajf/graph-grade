@@ -1,6 +1,8 @@
 from pathlib import Path
 
 from app.models import (
+    ApiResponseJudgeContext,
+    ApiResponseJudgeResult,
     CellRangeSpec,
     CodeJudgeContext,
     CodeJudgeResult,
@@ -13,6 +15,7 @@ from app.models import (
     RequirementEvidence,
     RequirementSpec,
 )
+from app.nodes.api_response_judge import judge_api_response_requirements
 from app.nodes.code_grader import grade_code_requirements
 from app.nodes.code_judge import judge_code_requirements
 from app.nodes.markdown_grader import grade_markdown_requirements
@@ -477,6 +480,165 @@ def test_grade_result_requirements_uses_deterministic_checks() -> None:
     assert result["result_grades"][0].evidence_cells == [1]
 
 
+def test_judge_api_response_requirements_refines_deterministic_grade() -> None:
+    section = section_with_cells(
+        [
+            markdown_cell(0, "## Tools"),
+            code_cell(
+                1,
+                "response = api.score(payload)\nprint(response)",
+                execution_count=1,
+                output_text='{"score": 2, "max_score": 10, "details": {"valid": false}}',
+            ),
+        ]
+    )
+    part = part_with_requirements(
+        result_requirements=[
+            RequirementSpec(
+                id="api_score_quality",
+                description="Shows a valid API score response.",
+                points=5,
+                checks=["api_response_visible"],
+                quality_criteria=["The API result should indicate a valid answer."],
+            )
+        ]
+    )
+    base_state = state(part, section)
+    base_state.update(grade_result_requirements(base_state))
+    api_response_judge = RecordingApiResponseJudge(
+        ApiResponseJudgeResult(
+            points_awarded=2,
+            status="partial",
+            evidence_cells=[1],
+            reasoning="The API response is visible but reports a low invalid score.",
+            comment="API response is visible, but it does not demonstrate a correct result.",
+            confidence="medium",
+        )
+    )
+    base_state["api_response_judge"] = api_response_judge
+
+    result = judge_api_response_requirements(base_state)
+
+    judged_grade = result["result_grades"][0]
+    assert judged_grade.points_awarded == 2
+    assert judged_grade.points_possible == 5
+    assert judged_grade.status == "partial"
+    assert judged_grade.comment == (
+        "API response is visible, but it does not demonstrate a correct result."
+    )
+    assert len(api_response_judge.contexts) == 1
+    judge_context = api_response_judge.contexts[0]
+    assert judge_context.requirement.id == "api_score_quality"
+    assert judge_context.deterministic_grade.points_awarded == 5
+    assert judge_context.deterministic_checks[0].check_name == "api_response_visible"
+    assert [score.cell_index for score in judge_context.evidence_index.api_scores] == [1]
+    assert [cell.index for cell in judge_context.code_cells] == [1]
+
+
+def test_judge_api_response_requirements_returns_deterministic_grade_without_judge() -> None:
+    section = section_with_cells(
+        [
+            markdown_cell(0, "## Tools"),
+            code_cell(
+                1,
+                "print(score)",
+                execution_count=1,
+                output_text='{"score": 9, "max_score": 10}',
+            ),
+        ]
+    )
+    part = part_with_requirements(
+        result_requirements=[
+            RequirementSpec(
+                id="api_score_quality",
+                description="Shows a valid API score response.",
+                points=5,
+                checks=["api_response_visible"],
+            )
+        ]
+    )
+    base_state = state(part, section)
+    base_state.update(grade_result_requirements(base_state))
+
+    result = judge_api_response_requirements(base_state)
+
+    assert result["result_grades"] == base_state["result_grades"]
+
+
+def test_judge_api_response_requirements_falls_back_to_deterministic_grade_on_error() -> None:
+    section = section_with_cells(
+        [
+            markdown_cell(0, "## Tools"),
+            code_cell(
+                1,
+                "print(score)",
+                execution_count=1,
+                output_text='{"score": 9, "max_score": 10}',
+            ),
+        ]
+    )
+    part = part_with_requirements(
+        result_requirements=[
+            RequirementSpec(
+                id="api_score_quality",
+                description="Shows a valid API score response.",
+                points=5,
+                checks=["api_response_visible"],
+            )
+        ]
+    )
+    base_state = state(part, section)
+    base_state.update(grade_result_requirements(base_state))
+    base_state["api_response_judge"] = FailingApiResponseJudge()
+
+    result = judge_api_response_requirements(base_state)
+
+    fallback_grade = result["result_grades"][0]
+    assert fallback_grade.points_awarded == 5
+    assert fallback_grade.confidence == "low"
+    assert "API response judge failed; kept deterministic grade." in fallback_grade.comment
+
+
+def test_judge_api_response_requirements_clamps_points_to_requirement_points() -> None:
+    section = section_with_cells(
+        [
+            markdown_cell(0, "## Tools"),
+            code_cell(
+                1,
+                "print(score)",
+                execution_count=1,
+                output_text='{"score": 10, "max_score": 10}',
+            ),
+        ]
+    )
+    part = part_with_requirements(
+        result_requirements=[
+            RequirementSpec(
+                id="api_score_quality",
+                description="Shows a valid API score response.",
+                points=5,
+                checks=["api_response_visible"],
+            )
+        ]
+    )
+    base_state = state(part, section)
+    base_state.update(grade_result_requirements(base_state))
+    base_state["api_response_judge"] = RecordingApiResponseJudge(
+        ApiResponseJudgeResult(
+            points_awarded=99,
+            status="full",
+            evidence_cells=[1],
+            reasoning="The judge over-awarded points.",
+            comment="Complete result.",
+            confidence="high",
+        )
+    )
+
+    result = judge_api_response_requirements(base_state)
+
+    assert result["result_grades"][0].points_awarded == 5
+
+
 def test_synthesize_section_grade_preserves_bucket_order_and_totals() -> None:
     section = section_with_cells(
         [
@@ -613,4 +775,25 @@ class RecordingMarkdownJudge:
 
 class FailingMarkdownJudge:
     def judge_markdown(self, context: MarkdownJudgeContext) -> MarkdownJudgeResult:
+        raise RuntimeError("offline judge unavailable")
+
+
+class RecordingApiResponseJudge:
+    def __init__(self, result: ApiResponseJudgeResult) -> None:
+        self.result = result
+        self.contexts: list[ApiResponseJudgeContext] = []
+
+    def judge_api_response(
+        self,
+        context: ApiResponseJudgeContext,
+    ) -> ApiResponseJudgeResult:
+        self.contexts.append(context)
+        return self.result
+
+
+class FailingApiResponseJudge:
+    def judge_api_response(
+        self,
+        context: ApiResponseJudgeContext,
+    ) -> ApiResponseJudgeResult:
         raise RuntimeError("offline judge unavailable")

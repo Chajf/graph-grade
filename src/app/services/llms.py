@@ -6,11 +6,14 @@ from typing import Any, Protocol
 from langchain.chat_models import init_chat_model
 
 from app.models.judges import (
+    ApiResponseJudgeContext,
+    ApiResponseJudgeResult,
     CodeJudgeContext,
     CodeJudgeResult,
     MarkdownJudgeContext,
     MarkdownJudgeResult,
 )
+from app.prompts.api_response_judge import build_api_response_judge_messages
 from app.prompts.code_judge import build_code_judge_messages
 from app.prompts.markdown_judge import build_markdown_judge_messages
 
@@ -27,6 +30,14 @@ class CodeJudgeProtocol(Protocol):
 
 class MarkdownJudgeProtocol(Protocol):
     def judge_markdown(self, context: MarkdownJudgeContext) -> MarkdownJudgeResult:
+        ...
+
+
+class ApiResponseJudgeProtocol(Protocol):
+    def judge_api_response(
+        self,
+        context: ApiResponseJudgeContext,
+    ) -> ApiResponseJudgeResult:
         ...
 
 
@@ -56,6 +67,12 @@ def create_markdown_judge(
     return LangChainMarkdownJudge(chat_model=create_chat_model(settings))
 
 
+def create_api_response_judge(
+    settings: JudgeModelSettings | None = None,
+) -> LangChainApiResponseJudge:
+    return LangChainApiResponseJudge(chat_model=create_chat_model(settings))
+
+
 class LangChainCodeJudge:
     def __init__(self, chat_model: Any) -> None:
         self._structured_model = chat_model.with_structured_output(CodeJudgeResult)
@@ -72,6 +89,20 @@ class LangChainMarkdownJudge:
     def judge_markdown(self, context: MarkdownJudgeContext) -> MarkdownJudgeResult:
         raw_result = self._structured_model.invoke(build_markdown_judge_messages(context))
         return _validate_judge_result(raw_result, MarkdownJudgeResult)
+
+
+class LangChainApiResponseJudge:
+    def __init__(self, chat_model: Any) -> None:
+        self._structured_model = chat_model.with_structured_output(ApiResponseJudgeResult)
+
+    def judge_api_response(
+        self,
+        context: ApiResponseJudgeContext,
+    ) -> ApiResponseJudgeResult:
+        raw_result = self._structured_model.invoke(
+            build_api_response_judge_messages(context)
+        )
+        return _validate_judge_result(raw_result, ApiResponseJudgeResult)
 
 
 def _validate_judge_result(raw_result: Any, result_type):

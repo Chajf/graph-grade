@@ -1,8 +1,12 @@
 from __future__ import annotations
 
-from app.graphs.state import SectionGraphState
+from typing import TYPE_CHECKING
+
 from app.models import RequirementGrade, RequirementSpec, SectionEvidence
 from app.services.grading_checks import check_markdown_requirement
+
+if TYPE_CHECKING:
+    from app.graphs.state import SectionGraphState
 
 
 def grade_markdown_requirements(state: SectionGraphState) -> dict[str, list[RequirementGrade]]:

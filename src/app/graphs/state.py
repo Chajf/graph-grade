@@ -15,7 +15,11 @@ from app.models import (
     SectionGrade,
     SharePointStudentSubmission,
 )
-from app.services.llms import CodeJudgeProtocol, MarkdownJudgeProtocol
+from app.services.llms import (
+    ApiResponseJudgeProtocol,
+    CodeJudgeProtocol,
+    MarkdownJudgeProtocol,
+)
 
 
 class SectionGraphState(TypedDict):
@@ -25,6 +29,7 @@ class SectionGraphState(TypedDict):
     evidence_index: EvidenceIndex
     evidence: NotRequired[SectionEvidence]
     global_evidence: NotRequired[EvidenceIndex]
+    api_response_judge: NotRequired[ApiResponseJudgeProtocol]
     code_judge: NotRequired[CodeJudgeProtocol]
     markdown_judge: NotRequired[MarkdownJudgeProtocol]
     code_grades: NotRequired[list[RequirementGrade]]
@@ -49,6 +54,7 @@ class GradingGraphState(TypedDict):
     parsed_notebook: NotRequired[ParsedNotebook]
     sections: NotRequired[list[SectionEvidence]]
     evidence_index: NotRequired[EvidenceIndex]
+    api_response_judge: NotRequired[ApiResponseJudgeProtocol]
     code_judge: NotRequired[CodeJudgeProtocol]
     markdown_judge: NotRequired[MarkdownJudgeProtocol]
     section_grades: NotRequired[Annotated[list[SectionGrade], operator.add]]
@@ -78,6 +84,7 @@ class LaboratoryGraphState(TypedDict):
     group_id: str
     lab_spec: NotRequired[LabSpec]
     submissions: NotRequired[list[SharePointStudentSubmission]]
+    api_response_judge: NotRequired[ApiResponseJudgeProtocol]
     code_judge: NotRequired[CodeJudgeProtocol]
     markdown_judge: NotRequired[MarkdownJudgeProtocol]
     final_grades: NotRequired[Annotated[list[FinalGrade], operator.add]]

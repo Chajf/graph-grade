@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
-from app.graphs.state import SectionGraphState
 from app.models import GradeStatus, RequirementGrade, RequirementSpec, SectionEvidence
 from app.services.code_features import match_code_markers
+
+if TYPE_CHECKING:
+    from app.graphs.state import SectionGraphState
 
 
 def grade_code_requirements(state: SectionGraphState) -> dict[str, list[RequirementGrade]]:
