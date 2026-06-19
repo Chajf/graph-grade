@@ -1,8 +1,6 @@
 import json
 from pathlib import Path
 
-from langgraph.graph import END
-
 from app.graphs.laboratory_graph import create_laboratory_graph, fan_out_students
 from app.models import LabSpec, NotebookResolutionIssue, SharePointStudentSubmission
 from app.nodes.submission_resolution_collector import submission_resolution_collector
@@ -35,7 +33,7 @@ def test_fan_out_students_creates_send_for_each_submission(tmp_path: Path) -> No
     assert [send.arg["lab_spec"].lab_id for send in sends] == ["lab7", "lab7"]
 
 
-def test_fan_out_students_routes_empty_submissions_to_end(tmp_path: Path) -> None:
+def test_fan_out_students_routes_empty_submissions_to_summary_writer(tmp_path: Path) -> None:
     result = fan_out_students(
         {
             "prace_root": tmp_path / "prace",
@@ -48,7 +46,7 @@ def test_fan_out_students_routes_empty_submissions_to_end(tmp_path: Path) -> Non
         }
     )
 
-    assert result == END
+    assert result == "group_summary_writer"
 
 
 def test_fan_out_students_only_sends_resolved_submissions(tmp_path: Path) -> None:
@@ -126,6 +124,16 @@ def test_laboratory_graph_collects_embedded_grading_graph_results(tmp_path: Path
     assert [grade.status for grade in final_grades] == ["graded", "skipped"]
     assert final_grades[0].points_awarded == 4
     assert final_grades[1].flags == ["submission_unresolved", "issue:missing_notebook"]
+    assert final_state["summary_csv_path"] == (
+        tmp_path / "grading_results" / "lab7" / "lab1" / "group_summary.csv"
+    )
+    assert final_state["summary_md_path"] == (
+        tmp_path / "grading_results" / "lab7" / "lab1" / "group_summary.md"
+    )
+    assert final_state["summary_csv_path"].is_file()
+    markdown = final_state["summary_md_path"].read_text(encoding="utf-8")
+    assert "| Anna_Nowak | yes | 4 / 4 | graded | - | no | - |" in markdown
+    assert "| Jan_Kowalski | no | 0 / 4 | skipped | submission_unresolved, issue:missing_notebook | yes | missing_notebook |" in markdown
 
 
 def submission(tmp_path: Path, student_folder: str) -> SharePointStudentSubmission:
