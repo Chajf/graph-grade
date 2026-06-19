@@ -75,6 +75,8 @@ class LaboratoryGraphState(TypedDict):
     group_id: str
     lab_spec: NotRequired[LabSpec]
     submissions: NotRequired[list[SharePointStudentSubmission]]
+    code_judge: NotRequired[CodeJudgeProtocol]
+    markdown_judge: NotRequired[MarkdownJudgeProtocol]
     final_grades: NotRequired[Annotated[list[FinalGrade], operator.add]]
     laboratory_errors: NotRequired[Annotated[list[str], operator.add]]
     summary_csv_path: NotRequired[Path]

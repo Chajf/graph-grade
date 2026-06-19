@@ -48,6 +48,10 @@ def fan_out_students(state: LaboratoryGraphState) -> list[Send] | str:
             "submission": submission,
             "output_root": state["output_root"],
         }
+        if "code_judge" in state:
+            payload["code_judge"] = state["code_judge"]
+        if "markdown_judge" in state:
+            payload["markdown_judge"] = state["markdown_judge"]
         sends.append(Send("student_grading", payload))
 
     return sends

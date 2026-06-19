@@ -1,7 +1,9 @@
 import json
 from pathlib import Path
 
+import app.main as main_module
 from app.main import main
+from app.models import CodeJudgeResult, MarkdownJudgeResult
 
 
 def test_grade_student_creates_grade_feedback_and_student_summary(
@@ -88,6 +90,98 @@ def test_grade_student_reports_unresolved_submission(
     output = json.loads(capsys.readouterr().out)
     assert output["status"] == "unresolved"
     assert output["issue"]["code"] == "missing_notebook"
+
+
+def test_grade_student_can_enable_llm_judges(
+    tmp_path: Path,
+    capsys,
+    monkeypatch,
+) -> None:
+    specs_root = tmp_path / "grading_specs"
+    submissions_root = tmp_path / "prace"
+    output_root = tmp_path / "grading_results"
+    captured_settings = []
+    write_spec(specs_root)
+    write_notebook(
+        submissions_root / "lab1" / "Jan_Kowalski" / "lab7" / "Wersja 1" / "lab7_Kowalski.ipynb"
+    )
+
+    def create_code_judge(settings):
+        captured_settings.append(("code", settings))
+        return StubCodeJudge()
+
+    def create_markdown_judge(settings):
+        captured_settings.append(("markdown", settings))
+        return StubMarkdownJudge()
+
+    monkeypatch.setattr(main_module, "create_code_judge", create_code_judge)
+    monkeypatch.setattr(main_module, "create_markdown_judge", create_markdown_judge)
+
+    exit_code = main(
+        [
+            "grade-student",
+            "--prace-root",
+            str(submissions_root),
+            "--specs-root",
+            str(specs_root),
+            "--output-root",
+            str(output_root),
+            "--group",
+            "lab1",
+            "--student",
+            "Jan_Kowalski",
+            "--lab",
+            "lab7",
+            "--llm-judges",
+            "--judge-model",
+            "test/model",
+            "--judge-provider",
+            "test-provider",
+            "--judge-temperature",
+            "0.2",
+        ]
+    )
+
+    assert exit_code == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["points_awarded"] == 10
+    assert [(kind, settings.model, settings.model_provider, settings.temperature) for kind, settings in captured_settings] == [
+        ("code", "test/model", "test-provider", 0.2),
+        ("markdown", "test/model", "test-provider", 0.2),
+    ]
+
+    grade_json = json.loads(Path(output["grade_path"]).read_text(encoding="utf-8"))
+    requirement_grades = [
+        requirement
+        for section in grade_json["section_grades"]
+        for requirement in section["requirement_grades"]
+    ]
+    assert requirement_grades[0]["comment"] == "LLM code judge adjusted score."
+    assert requirement_grades[1]["comment"] == "LLM markdown judge adjusted score."
+
+
+class StubCodeJudge:
+    def judge_code(self, context):
+        return CodeJudgeResult(
+            points_awarded=2,
+            status="partial",
+            evidence_cells=context.deterministic_grade.evidence_cells,
+            reasoning="Stub code judge.",
+            comment="LLM code judge adjusted score.",
+            confidence="medium",
+        )
+
+
+class StubMarkdownJudge:
+    def judge_markdown(self, context):
+        return MarkdownJudgeResult(
+            points_awarded=8,
+            status="full",
+            evidence_cells=context.deterministic_grade.evidence_cells,
+            reasoning="Stub markdown judge.",
+            comment="LLM markdown judge adjusted score.",
+            confidence="high",
+        )
 
 
 def write_spec(specs_root: Path) -> None:
