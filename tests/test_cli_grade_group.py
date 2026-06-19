@@ -169,3 +169,148 @@ def test_grade_group_dry_run_outputs_ambiguous_submission(
         "lab7_a.ipynb",
         "lab7_b.ipynb",
     ]
+
+
+def test_grade_group_grades_resolved_students_and_writes_summary(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    specs_root = tmp_path / "grading_specs"
+    submissions_root = tmp_path / "prace"
+    output_root = tmp_path / "grading_results"
+    write_gradeable_spec(specs_root)
+    write_notebook(
+        submissions_root / "lab1" / "Anna_Nowak" / "lab7" / "Wersja 1" / "lab7_Anna.ipynb"
+    )
+    (submissions_root / "lab1" / "Jan_Kowalski" / "lab7" / "Wersja 1").mkdir(parents=True)
+
+    exit_code = main(
+        [
+            "grade-group",
+            "--prace-root",
+            str(submissions_root),
+            "--group",
+            "lab1",
+            "--lab",
+            "lab7",
+            "--specs-root",
+            str(specs_root),
+            "--output-root",
+            str(output_root),
+        ]
+    )
+
+    assert exit_code == 0
+    output = json.loads(capsys.readouterr().out)
+    summary_csv_path = output_root / "lab7" / "lab1" / "group_summary.csv"
+    summary_md_path = output_root / "lab7" / "lab1" / "group_summary.md"
+
+    assert output == {
+        "failed_count": 0,
+        "graded_count": 1,
+        "group_id": "lab1",
+        "lab_id": "lab7",
+        "laboratory_errors": [
+            (
+                "lab1/Jan_Kowalski: missing_notebook: "
+                f"No .ipynb files found in: {submissions_root / 'lab1' / 'Jan_Kowalski' / 'lab7' / 'Wersja 1'}"
+            )
+        ],
+        "skipped_count": 1,
+        "summary_csv_path": str(summary_csv_path),
+        "summary_md_path": str(summary_md_path),
+    }
+    assert summary_csv_path.is_file()
+    assert summary_md_path.is_file()
+    assert (output_root / "lab7" / "lab1" / "Anna_Nowak" / "grade.json").is_file()
+
+
+def test_grade_group_requires_output_root_without_dry_run(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    specs_root = tmp_path / "grading_specs"
+    submissions_root = tmp_path / "prace"
+    write_gradeable_spec(specs_root)
+
+    exit_code = main(
+        [
+            "grade-group",
+            "--prace-root",
+            str(submissions_root),
+            "--group",
+            "lab1",
+            "--lab",
+            "lab7",
+            "--specs-root",
+            str(specs_root),
+        ]
+    )
+
+    assert exit_code == 2
+    assert "requires --output-root" in capsys.readouterr().err
+
+
+def write_gradeable_spec(specs_root: Path) -> None:
+    lab_dir = specs_root / "labs" / "lab7"
+    parts_dir = lab_dir / "parts"
+    parts_dir.mkdir(parents=True)
+    (lab_dir / "notebook.yaml").write_text(
+        """
+lab_id: "lab7"
+title: "Lab 7"
+language: "pl"
+expected_submission:
+  notebook_pattern: "lab7_*.ipynb"
+  required_files: []
+grading:
+  total_points: 4
+  parts_dir: "parts"
+  part_files:
+    - "01_schema.yaml"
+""".lstrip(),
+        encoding="utf-8",
+    )
+    (parts_dir / "01_schema.yaml").write_text(
+        """
+part_id: "01"
+title: "Schema"
+source_heading: "## Part 1"
+cell_range:
+  start_heading: "## Part 1"
+  end_heading: null
+requirements:
+  code:
+    - id: "code_schema"
+      description: "Defines supplier schema."
+      points: 4
+      evidence:
+        cell_markers:
+          - "class SupplierOffer"
+  markdown: []
+  results: []
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+
+def write_notebook(path: Path) -> None:
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        json.dumps(
+            {
+                "cells": [
+                    {
+                        "cell_type": "markdown",
+                        "source": ["# Lab 7\n", "## Part 1\n"],
+                    },
+                    {
+                        "cell_type": "code",
+                        "execution_count": 1,
+                        "source": ["class SupplierOffer:\n", "    pass\n"],
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )

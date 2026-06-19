@@ -4,7 +4,7 @@ from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 
-from app.graphs.state import SectionGraphState
+from app.graphs.state import SectionGraphOutput, SectionGraphState
 from app.nodes.code_grader import grade_code_requirements
 from app.nodes.code_judge import judge_code_requirements
 from app.nodes.markdown_grader import grade_markdown_requirements
@@ -15,7 +15,7 @@ from app.nodes.section_synthesizer import synthesize_section_grade
 
 
 def create_section_graph() -> Any:
-    graph = StateGraph(SectionGraphState)
+    graph = StateGraph(SectionGraphState, output_schema=SectionGraphOutput)
 
     graph.add_node("section_loader", section_loader)
     graph.add_node("code_grader", grade_code_requirements)

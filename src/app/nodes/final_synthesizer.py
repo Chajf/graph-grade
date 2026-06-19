@@ -33,7 +33,11 @@ def final_synthesizer(state: GradingGraphState) -> dict[str, object]:
         flags=_deduplicate(flags),
         summary=f"Final score: {points_awarded:g} / {points_possible:g}.",
     )
-    return {"final_grade": final_grade, "flags": final_grade.flags}
+    return {
+        "final_grade": final_grade,
+        "final_grades": [final_grade],
+        "flags": final_grade.flags,
+    }
 
 
 def _deduplicate(values: list[str]) -> list[str]:

@@ -2,12 +2,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any, Sequence
 
-from app.graphs.grading import create_grading_graph
+from app.graphs.grading_graph import create_grading_graph
+from app.graphs.laboratory_graph import create_laboratory_graph
 from app.models import LabSpec, NotebookResolutionIssue, ParsedNotebook, SharePointStudentSubmission
 from app.repositories import GradingSpecRepository, SharePointRepository
+from app.services.llms import (
+    DEFAULT_JUDGE_MODEL,
+    DEFAULT_JUDGE_PROVIDER,
+    DEFAULT_JUDGE_TEMPERATURE,
+    JudgeModelSettings,
+    create_code_judge,
+    create_markdown_judge,
+)
 from app.services.notebook_parser import parse_notebook
 
 
@@ -35,10 +45,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     grade_group = subparsers.add_parser(
         "grade-group",
-        help="Load one lab spec and resolve submissions for one group.",
+        help="Grade all resolved student submissions for one lab group.",
     )
-    grade_group.add_argument("--dry-run", action="store_true", required=True)
+    grade_group.add_argument("--dry-run", action="store_true")
     grade_group.add_argument("--prace-root", type=Path, required=True)
+    grade_group.add_argument("--output-root", type=Path)
     grade_group.add_argument("--group", required=True)
     grade_group.add_argument("--lab", required=True)
     grade_group.add_argument(
@@ -48,6 +59,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("work/grading_specs"),
     )
+    add_judge_arguments(grade_group)
 
     grade_student = subparsers.add_parser(
         "grade-student",
@@ -65,6 +77,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("work/grading_specs"),
     )
+    add_judge_arguments(grade_student)
 
     parse_notebook_parser = subparsers.add_parser(
         "parse-notebook",
@@ -75,10 +88,47 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def add_judge_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--llm-judges",
+        action="store_true",
+        help="Enable LLM code and markdown judge refinement.",
+    )
+    parser.add_argument("--judge-model", default=DEFAULT_JUDGE_MODEL)
+    parser.add_argument("--judge-provider", default=DEFAULT_JUDGE_PROVIDER)
+    parser.add_argument("--judge-temperature", type=float, default=DEFAULT_JUDGE_TEMPERATURE)
+
+
 def run_grade_group(args: argparse.Namespace) -> int:
     lab_spec = GradingSpecRepository(args.specs_dir).load_lab_spec(args.lab)
     repository = SharePointRepository(args.prace_root)
     submissions = repository.list_submissions(args.group, lab_spec)
+
+    if not args.dry_run:
+        if args.output_root is None:
+            print(
+                "grade-group requires --output-root unless --dry-run is used.",
+                file=sys.stderr,
+            )
+            return 2
+        initial_state = {
+            "prace_root": args.prace_root,
+            "specs_root": args.specs_dir,
+            "output_root": args.output_root,
+            "lab_id": args.lab,
+            "group_id": args.group,
+        }
+        initial_state.update(build_judge_state(args))
+        final_state = create_laboratory_graph().invoke(initial_state)
+        print(
+            json.dumps(
+                serialize_grade_group_result(final_state),
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
 
     output = {
         "dry_run": args.dry_run,
@@ -118,12 +168,28 @@ def run_grade_student(args: argparse.Namespace) -> int:
             "lab_spec": lab_spec,
             "submission": submission,
             "output_root": args.output_root,
+            **build_judge_state(args),
         }
     )
 
     output = serialize_grade_student_result(final_state)
     print(json.dumps(output, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
+
+
+def build_judge_state(args: argparse.Namespace) -> dict[str, object]:
+    if not args.llm_judges:
+        return {}
+
+    settings = JudgeModelSettings(
+        model=args.judge_model,
+        model_provider=args.judge_provider,
+        temperature=args.judge_temperature,
+    )
+    return {
+        "code_judge": create_code_judge(settings),
+        "markdown_judge": create_markdown_judge(settings),
+    }
 
 
 def run_parse_notebook(args: argparse.Namespace) -> int:
@@ -198,6 +264,20 @@ def serialize_grade_student_result(final_state: dict[str, Any]) -> dict[str, Any
         "status": final_grade.status,
         "student_folder": final_grade.student_folder,
         "student_summary_path": str(final_state["student_summary_path"]),
+    }
+
+
+def serialize_grade_group_result(final_state: dict[str, Any]) -> dict[str, Any]:
+    final_grades = final_state.get("final_grades", [])
+    return {
+        "graded_count": sum(grade.status == "graded" for grade in final_grades),
+        "group_id": final_state["group_id"],
+        "lab_id": final_state["lab_id"],
+        "laboratory_errors": final_state.get("laboratory_errors", []),
+        "failed_count": sum(grade.status == "failed" for grade in final_grades),
+        "skipped_count": sum(grade.status == "skipped" for grade in final_grades),
+        "summary_csv_path": str(final_state["summary_csv_path"]),
+        "summary_md_path": str(final_state["summary_md_path"]),
     }
 
 

@@ -5,26 +5,27 @@ from typing import Any
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send
 
-from app.graphs.state import GradingGraphState, SectionGradingPayload
+from app.graphs.section_graph import create_section_graph
+from app.graphs.state import GradingGraphOutput, GradingGraphState, SectionGraphState
 from app.nodes.evidence_builder import evidence_builder
 from app.nodes.final_synthesizer import final_synthesizer
 from app.nodes.notebook_loader import notebook_loader
 from app.nodes.notebook_parser import notebook_parser
 from app.nodes.result_persister import result_persister
-from app.nodes.section_grading import section_grading
 from app.nodes.section_splitter import section_splitter
 from app.nodes.submission_loader import submission_loader
 
 
 def create_grading_graph() -> Any:
-    graph = StateGraph(GradingGraphState)
+    graph = StateGraph(GradingGraphState, output_schema=GradingGraphOutput)
+    section_graph = create_section_graph()
 
     graph.add_node("submission_loader", submission_loader)
     graph.add_node("notebook_loader", notebook_loader)
     graph.add_node("notebook_parser", notebook_parser)
     graph.add_node("section_splitter", section_splitter)
     graph.add_node("evidence_builder", evidence_builder)
-    graph.add_node("section_grading", section_grading)
+    graph.add_node("section_grading", section_graph)
     graph.add_node("final_synthesizer", final_synthesizer)
     graph.add_node("result_persister", result_persister)
 
@@ -49,7 +50,7 @@ def fan_out_sections(state: GradingGraphState) -> list[Send] | str:
     part_specs = {part.part_id: part for part in state["lab_spec"].parts}
     sends: list[Send] = []
     for section in sections:
-        payload: SectionGradingPayload = {
+        payload: SectionGraphState = {
             "lab_id": state["lab_spec"].lab_id,
             "part_spec": part_specs[section.part_id],
             "section": section,
