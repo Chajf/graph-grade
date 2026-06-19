@@ -25,6 +25,8 @@ from app.models.evidence import (
     SectionEvidence,
 )
 from app.models.grades import (
+    FinalGrade,
+    FinalGradeStatus,
     GradeBucket,
     GradeConfidence,
     GradeStatus,
@@ -48,6 +50,8 @@ __all__ = [
     "CodeJudgeResult",
     "CodeMarkerFinding",
     "EvidenceIndex",
+    "FinalGrade",
+    "FinalGradeStatus",
     "GradeBucket",
     "GradeConfidence",
     "GradeStatus",

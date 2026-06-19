@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Any, Sequence
 
+from app.graphs.grading import create_grading_graph
 from app.models import LabSpec, NotebookResolutionIssue, ParsedNotebook, SharePointStudentSubmission
 from app.repositories import GradingSpecRepository, SharePointRepository
 from app.services.notebook_parser import parse_notebook
@@ -16,6 +17,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "grade-group":
         return run_grade_group(args)
+    if args.command == "grade-student":
+        return run_grade_student(args)
     if args.command == "parse-notebook":
         return run_parse_notebook(args)
 
@@ -38,7 +41,30 @@ def build_parser() -> argparse.ArgumentParser:
     grade_group.add_argument("--prace-root", type=Path, required=True)
     grade_group.add_argument("--group", required=True)
     grade_group.add_argument("--lab", required=True)
-    grade_group.add_argument("--specs-dir", type=Path, default=Path("work/grading_specs"))
+    grade_group.add_argument(
+        "--specs-dir",
+        "--specs-root",
+        dest="specs_dir",
+        type=Path,
+        default=Path("work/grading_specs"),
+    )
+
+    grade_student = subparsers.add_parser(
+        "grade-student",
+        help="Grade one resolved student submission for one lab.",
+    )
+    grade_student.add_argument("--prace-root", type=Path, required=True)
+    grade_student.add_argument("--output-root", type=Path, required=True)
+    grade_student.add_argument("--group", required=True)
+    grade_student.add_argument("--student", required=True)
+    grade_student.add_argument("--lab", required=True)
+    grade_student.add_argument(
+        "--specs-dir",
+        "--specs-root",
+        dest="specs_dir",
+        type=Path,
+        default=Path("work/grading_specs"),
+    )
 
     parse_notebook_parser = subparsers.add_parser(
         "parse-notebook",
@@ -62,6 +88,40 @@ def run_grade_group(args: argparse.Namespace) -> int:
         "spec": serialize_lab_spec(lab_spec),
         "submissions": [serialize_submission(submission) for submission in submissions],
     }
+    print(json.dumps(output, ensure_ascii=False, indent=2, sort_keys=True))
+    return 0
+
+
+def run_grade_student(args: argparse.Namespace) -> int:
+    lab_spec = GradingSpecRepository(args.specs_dir).load_lab_spec(args.lab)
+    repository = SharePointRepository(args.prace_root)
+    submission = repository.resolve_student_submission(args.group, args.student, lab_spec)
+    if not submission.resolved:
+        print(
+            json.dumps(
+                {
+                    "group_id": submission.group_id,
+                    "issue": serialize_issue(submission.issue),
+                    "lab_id": submission.lab_id,
+                    "status": submission.status,
+                    "student_folder": submission.student_folder,
+                },
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 1
+
+    final_state = create_grading_graph().invoke(
+        {
+            "lab_spec": lab_spec,
+            "submission": submission,
+            "output_root": args.output_root,
+        }
+    )
+
+    output = serialize_grade_student_result(final_state)
     print(json.dumps(output, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
 
@@ -123,6 +183,21 @@ def serialize_submission(submission: SharePointStudentSubmission) -> dict[str, A
         "status": submission.status,
         "student_folder": submission.student_folder,
         "version_folder": serialize_path(submission.version_folder),
+    }
+
+
+def serialize_grade_student_result(final_state: dict[str, Any]) -> dict[str, Any]:
+    final_grade = final_state["final_grade"]
+    return {
+        "feedback_path": str(final_state["lab_feedback_path"]),
+        "grade_path": str(final_state["lab_grade_path"]),
+        "group_id": final_grade.group_id,
+        "lab_id": final_grade.lab_id,
+        "points_awarded": final_grade.points_awarded,
+        "points_possible": final_grade.points_possible,
+        "status": final_grade.status,
+        "student_folder": final_grade.student_folder,
+        "student_summary_path": str(final_state["student_summary_path"]),
     }
 
 
