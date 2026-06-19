@@ -31,16 +31,12 @@ class SectionGraphState(TypedDict):
     markdown_grades: NotRequired[list[RequirementGrade]]
     result_grades: NotRequired[list[RequirementGrade]]
     section_grade: NotRequired[SectionGrade]
-
-
-class SectionGradingPayload(TypedDict):
-    lab_id: str
-    part_spec: PartSpec
-    section: SectionEvidence
-    evidence_index: EvidenceIndex
-    code_judge: NotRequired[CodeJudgeProtocol]
-    markdown_judge: NotRequired[MarkdownJudgeProtocol]
     section_grades: NotRequired[Annotated[list[SectionGrade], operator.add]]
+
+
+class SectionGraphOutput(TypedDict):
+    section_grade: SectionGrade
+    section_grades: Annotated[list[SectionGrade], operator.add]
 
 
 class GradingGraphState(TypedDict):
@@ -55,13 +51,23 @@ class GradingGraphState(TypedDict):
     section_grades: NotRequired[Annotated[list[SectionGrade], operator.add]]
     flags: NotRequired[list[str]]
     final_grade: NotRequired[FinalGrade]
+    final_grades: NotRequired[Annotated[list[FinalGrade], operator.add]]
     lab_output_dir: NotRequired[Path]
     lab_grade_path: NotRequired[Path]
     lab_feedback_path: NotRequired[Path]
     student_summary_path: NotRequired[Path]
 
 
-class BatchGraphState(TypedDict):
+class GradingGraphOutput(TypedDict):
+    final_grade: FinalGrade
+    final_grades: Annotated[list[FinalGrade], operator.add]
+    lab_output_dir: Path
+    lab_grade_path: Path
+    lab_feedback_path: Path
+    student_summary_path: Path
+
+
+class LaboratoryGraphState(TypedDict):
     prace_root: Path
     specs_root: Path
     output_root: Path
@@ -70,14 +76,6 @@ class BatchGraphState(TypedDict):
     lab_spec: NotRequired[LabSpec]
     submissions: NotRequired[list[SharePointStudentSubmission]]
     final_grades: NotRequired[Annotated[list[FinalGrade], operator.add]]
-    batch_errors: NotRequired[Annotated[list[str], operator.add]]
+    laboratory_errors: NotRequired[Annotated[list[str], operator.add]]
     summary_csv_path: NotRequired[Path]
     summary_md_path: NotRequired[Path]
-
-
-class BatchStudentGradingPayload(TypedDict):
-    lab_spec: LabSpec
-    submission: SharePointStudentSubmission
-    output_root: Path
-    final_grades: NotRequired[Annotated[list[FinalGrade], operator.add]]
-    batch_errors: NotRequired[Annotated[list[str], operator.add]]

@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from app.graphs.section_graph import create_section_graph
 from app.models import (
     CellRangeSpec,
     LabSpec,
@@ -16,7 +17,7 @@ from app.nodes.final_synthesizer import final_synthesizer
 from app.nodes.notebook_loader import notebook_loader
 from app.nodes.notebook_parser import notebook_parser
 from app.nodes.result_persister import result_persister
-from app.nodes.section_grading import section_grading
+from app.nodes.section_loader import initialize_section_state
 from app.nodes.section_splitter import section_splitter
 from app.nodes.submission_loader import submission_loader
 
@@ -47,13 +48,13 @@ def test_student_grading_nodes_produce_final_grade_and_artifacts(tmp_path: Path)
     state.update(section_splitter(state))
     state.update(evidence_builder(state))
 
-    section_result = section_grading(
-        {
-            "lab_id": lab_spec.lab_id,
-            "part_spec": lab_spec.parts[0],
-            "section": state["sections"][0],
-            "evidence_index": state["evidence_index"],
-        }
+    section_result = create_section_graph().invoke(
+        initialize_section_state(
+            lab_spec.parts[0],
+            state["sections"][0],
+            state["evidence_index"],
+            lab_id=lab_spec.lab_id,
+        )
     )
     state.update(section_result)
     state.update(final_synthesizer(state))

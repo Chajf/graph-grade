@@ -108,10 +108,9 @@ def test_section_graph_skips_not_applicable_branches() -> None:
         initialize_section_state(part_spec, section, build_evidence_index(section))
     )
 
-    assert final_state["code_grades"] == []
-    assert final_state["result_grades"] == []
-    assert len(final_state["markdown_grades"]) == 1
     assert final_state["section_grade"].points_awarded == 3
+    assert len(final_state["section_grade"].requirement_grades) == 1
+    assert final_state["section_grades"] == [final_state["section_grade"]]
 
 
 def test_section_graph_synthesizes_empty_section_grade_when_no_branches_apply() -> None:

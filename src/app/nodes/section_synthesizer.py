@@ -4,7 +4,7 @@ from app.graphs.state import SectionGraphState
 from app.models import SectionGrade
 
 
-def synthesize_section_grade(state: SectionGraphState) -> dict[str, SectionGrade]:
+def synthesize_section_grade(state: SectionGraphState) -> dict[str, object]:
     part_spec = state["part_spec"]
     requirement_grades = [
         *state.get("code_grades", []),
@@ -22,4 +22,7 @@ def synthesize_section_grade(state: SectionGraphState) -> dict[str, SectionGrade
         requirement_grades=requirement_grades,
         summary=f"Preliminary deterministic score: {points_awarded:g} / {points_possible:g}.",
     )
-    return {"section_grade": section_grade}
+    return {
+        "section_grade": section_grade,
+        "section_grades": [section_grade],
+    }

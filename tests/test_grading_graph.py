@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from app.graphs.grading import create_grading_graph, fan_out_sections
+from app.graphs.grading_graph import create_grading_graph, fan_out_sections
 from app.models import (
     CellRangeSpec,
     LabSpec,
