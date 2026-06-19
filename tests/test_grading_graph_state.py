@@ -11,11 +11,10 @@ def test_grading_graph_state_collects_section_grades_with_add_reducer() -> None:
     assert metadata == (operator.add,)
 
 
-def test_section_graph_state_collects_section_grades_with_add_reducer() -> None:
+def test_section_graph_state_replaces_section_grades_without_reducer() -> None:
     hints = get_type_hints(SectionGraphState, include_extras=True)
-    metadata = _reducer_metadata(hints["section_grades"])
 
-    assert metadata == (operator.add,)
+    assert _reducer_metadata(hints["section_grades"]) == ()
 
 
 def test_grading_graph_state_collects_final_grades_with_add_reducer() -> None:

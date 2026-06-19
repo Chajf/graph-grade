@@ -12,7 +12,7 @@ def grade_markdown_requirements(state: SectionGraphState) -> dict[str, list[Requ
         _grade_markdown_requirement(section, requirement)
         for requirement in part_spec.markdown_requirements
     ]
-    return {"markdown_grades": grades}
+    return {"markdown_grades": grades, "deterministic_markdown_grades": grades}
 
 
 def _grade_markdown_requirement(

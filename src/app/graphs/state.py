@@ -30,13 +30,16 @@ class SectionGraphState(TypedDict):
     code_grades: NotRequired[list[RequirementGrade]]
     markdown_grades: NotRequired[list[RequirementGrade]]
     result_grades: NotRequired[list[RequirementGrade]]
+    deterministic_code_grades: NotRequired[list[RequirementGrade]]
+    deterministic_markdown_grades: NotRequired[list[RequirementGrade]]
+    deterministic_result_grades: NotRequired[list[RequirementGrade]]
     section_grade: NotRequired[SectionGrade]
-    section_grades: NotRequired[Annotated[list[SectionGrade], operator.add]]
+    section_grades: NotRequired[list[SectionGrade]]
 
 
 class SectionGraphOutput(TypedDict):
     section_grade: SectionGrade
-    section_grades: Annotated[list[SectionGrade], operator.add]
+    section_grades: list[SectionGrade]
 
 
 class GradingGraphState(TypedDict):

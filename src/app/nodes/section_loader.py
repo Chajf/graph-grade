@@ -26,4 +26,7 @@ def section_loader(state: SectionGraphState) -> SectionGraphState:
         "code_grades": state.get("code_grades", []),
         "markdown_grades": state.get("markdown_grades", []),
         "result_grades": state.get("result_grades", []),
+        "deterministic_code_grades": state.get("deterministic_code_grades", []),
+        "deterministic_markdown_grades": state.get("deterministic_markdown_grades", []),
+        "deterministic_result_grades": state.get("deterministic_result_grades", []),
     }

@@ -14,7 +14,7 @@ def grade_code_requirements(state: SectionGraphState) -> dict[str, list[Requirem
         _grade_code_requirement(section, requirement)
         for requirement in part_spec.code_requirements
     ]
-    return {"code_grades": grades}
+    return {"code_grades": grades, "deterministic_code_grades": grades}
 
 
 def _grade_code_requirement(

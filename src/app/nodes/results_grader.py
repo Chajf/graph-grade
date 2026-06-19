@@ -22,7 +22,7 @@ def grade_result_requirements(state: SectionGraphState) -> dict[str, list[Requir
         _grade_result_requirement(section, requirement, evidence_index)
         for requirement in part_spec.result_requirements
     ]
-    return {"result_grades": grades}
+    return {"result_grades": grades, "deterministic_result_grades": grades}
 
 
 def _grade_result_requirement(
