@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from app.graphs.state import BatchGraphState
+from app.graphs.state import LaboratoryGraphState
 from app.models import SharePointStudentSubmission
 from app.repositories import SharePointRepository
 
 
-def submission_lister(state: BatchGraphState) -> dict[str, object]:
+def submission_lister(state: LaboratoryGraphState) -> dict[str, object]:
     lab_spec = state.get("lab_spec")
     if lab_spec is None:
         raise ValueError("Lab spec is required before listing submissions.")
@@ -16,7 +16,7 @@ def submission_lister(state: BatchGraphState) -> dict[str, object]:
     )
     return {
         "submissions": submissions,
-        "batch_errors": _submission_errors(submissions),
+        "laboratory_errors": _submission_errors(submissions),
     }
 
 

@@ -4,20 +4,17 @@ from typing import get_args, get_type_hints
 
 import pytest
 
-from app.graphs.state import BatchGraphState, BatchStudentGradingPayload
+from app.graphs.state import LaboratoryGraphState
 from app.models import CellRangeSpec, LabSpec, PartSpec, RequirementSpec
 from app.nodes.lab_spec_loader import lab_spec_loader
 from app.nodes.lab_spec_validator import lab_spec_validator, validate_lab_spec
 
 
-def test_batch_state_has_reducer_fields() -> None:
-    batch_hints = get_type_hints(BatchGraphState, include_extras=True)
-    payload_hints = get_type_hints(BatchStudentGradingPayload, include_extras=True)
+def test_laboratory_state_has_reducer_fields() -> None:
+    laboratory_hints = get_type_hints(LaboratoryGraphState, include_extras=True)
 
-    assert _reducer_for(batch_hints["final_grades"]) is operator.add
-    assert _reducer_for(batch_hints["batch_errors"]) is operator.add
-    assert _reducer_for(payload_hints["final_grades"]) is operator.add
-    assert _reducer_for(payload_hints["batch_errors"]) is operator.add
+    assert _reducer_for(laboratory_hints["final_grades"]) is operator.add
+    assert _reducer_for(laboratory_hints["laboratory_errors"]) is operator.add
 
 
 def test_lab_spec_loader_loads_spec_and_initializes_errors(tmp_path: Path) -> None:
@@ -38,7 +35,7 @@ def test_lab_spec_loader_loads_spec_and_initializes_errors(tmp_path: Path) -> No
     assert isinstance(lab_spec, LabSpec)
     assert lab_spec.lab_id == "lab7"
     assert [part.part_id for part in lab_spec.parts] == ["01", "02"]
-    assert result["batch_errors"] == []
+    assert result["laboratory_errors"] == []
 
 
 def test_lab_spec_validator_accepts_valid_spec() -> None:

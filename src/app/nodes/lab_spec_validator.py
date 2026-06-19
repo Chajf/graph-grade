@@ -3,11 +3,11 @@ from __future__ import annotations
 from collections.abc import Iterable
 from math import isclose
 
-from app.graphs.state import BatchGraphState
+from app.graphs.state import LaboratoryGraphState
 from app.models import LabSpec, PartSpec, RequirementSpec
 
 
-def lab_spec_validator(state: BatchGraphState) -> dict[str, object]:
+def lab_spec_validator(state: LaboratoryGraphState) -> dict[str, object]:
     lab_spec = state.get("lab_spec")
     if lab_spec is None:
         raise ValueError("Lab spec is required before validation.")

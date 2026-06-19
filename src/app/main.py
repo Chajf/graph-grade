@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any, Sequence
 
-from app.graphs.grading import create_grading_graph
+from app.graphs.grading_graph import create_grading_graph
 from app.models import LabSpec, NotebookResolutionIssue, ParsedNotebook, SharePointStudentSubmission
 from app.repositories import GradingSpecRepository, SharePointRepository
 from app.services.notebook_parser import parse_notebook

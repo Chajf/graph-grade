@@ -21,7 +21,7 @@ def test_submission_lister_returns_resolved_submissions_without_errors(tmp_path:
         }
     )
 
-    assert result["batch_errors"] == []
+    assert result["laboratory_errors"] == []
     submissions = result["submissions"]
     assert len(submissions) == 1
     assert submissions[0].student_folder == "Jan_Kowalski"
@@ -50,7 +50,7 @@ def test_submission_lister_preserves_missing_notebook_and_records_error(tmp_path
     assert submissions[0].status == "unresolved"
     assert submissions[0].issue is not None
     assert submissions[0].issue.code == "missing_notebook"
-    assert result["batch_errors"] == [
+    assert result["laboratory_errors"] == [
         (
             "lab1/Jan_Kowalski: missing_notebook: "
             f"No .ipynb files found in: {prace_root / 'lab1' / 'Jan_Kowalski' / 'lab7' / 'Wersja 1'}"
@@ -82,7 +82,7 @@ def test_submission_lister_preserves_ambiguous_submission_and_records_error(tmp_
         "lab7_a.ipynb",
         "lab7_b.ipynb",
     ]
-    assert result["batch_errors"] == [
+    assert result["laboratory_errors"] == [
         "lab1/Jan_Kowalski: ambiguous_notebook: Multiple notebook candidates found."
     ]
 
