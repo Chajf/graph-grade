@@ -2,6 +2,7 @@ from pathlib import Path
 
 from app.models import (
     CellRangeSpec,
+    FinalGrade,
     LabSpec,
     NotebookCell,
     NotebookError,
@@ -289,3 +290,40 @@ def test_grade_models_preserve_requirement_order_and_serialize() -> None:
     assert dumped["requirement_grades"][0]["bucket"] == "code"
     assert dumped["requirement_grades"][0]["evidence_cells"] == [2]
     assert dumped["requirement_grades"][1]["status"] == "missing"
+
+
+def test_final_grade_model_sums_sections_and_serializes() -> None:
+    first_section = SectionGrade(
+        part_id="01",
+        title="Agent basics",
+        points_awarded=7,
+        points_possible=10,
+    )
+    second_section = SectionGrade(
+        part_id="02",
+        title="Tools",
+        points_awarded=18,
+        points_possible=25,
+    )
+
+    final_grade = FinalGrade(
+        lab_id="lab7",
+        group_id="lab1",
+        student_folder="Jan_Kowalski",
+        notebook_path="/prace/lab1/Jan_Kowalski/lab7/Wersja 2/lab7.ipynb",
+        points_awarded=sum(section.points_awarded for section in [first_section, second_section]),
+        points_possible=sum(section.points_possible for section in [first_section, second_section]),
+        section_grades=[first_section, second_section],
+        flags=["missing_required_file:data.csv"],
+        summary="Final score: 25 / 35.",
+    )
+
+    dumped = final_grade.model_dump(mode="json")
+
+    assert final_grade.status == "graded"
+    assert final_grade.points_awarded == 25
+    assert final_grade.points_possible == 35
+    assert [section.part_id for section in final_grade.section_grades] == ["01", "02"]
+    assert dumped["notebook_path"].endswith("/lab7.ipynb")
+    assert dumped["section_grades"][1]["title"] == "Tools"
+    assert dumped["flags"] == ["missing_required_file:data.csv"]
