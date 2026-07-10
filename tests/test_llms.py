@@ -18,7 +18,10 @@ from app.models import (
 )
 from app.services import llms
 from app.services.llms import (
+    DEFAULT_CODE_JUDGE_PROMPT,
+    DEFAULT_MARKDOWN_JUDGE_PROMPT,
     JudgeModelSettings,
+    JudgePromptSettings,
     LangChainCodeJudge,
     LangChainMarkdownJudge,
     create_chat_model,
@@ -66,8 +69,8 @@ def test_code_judge_invokes_structured_model_with_code_schema() -> None:
 
     assert result == expected_result
     assert chat_model.schema is CodeJudgeResult
-    assert len(chat_model.messages) == 2
-    assert "code_schema" in str(chat_model.messages[1].content)
+    assert len(chat_model.prompt_value.messages) == 2
+    assert "code_schema" in str(chat_model.prompt_value.messages[1].content)
 
 
 def test_markdown_judge_validates_dict_response() -> None:
@@ -96,8 +99,8 @@ def test_markdown_judge_validates_dict_response() -> None:
         flags=["missing_mitigation_detail"],
     )
     assert chat_model.schema is MarkdownJudgeResult
-    assert len(chat_model.messages) == 2
-    assert "markdown_reflection" in str(chat_model.messages[1].content)
+    assert len(chat_model.prompt_value.messages) == 2
+    assert "markdown_reflection" in str(chat_model.prompt_value.messages[1].content)
 
 
 def test_malformed_structured_response_fails_validation() -> None:
@@ -120,15 +123,39 @@ class StubChatModel:
     def __init__(self, response) -> None:
         self.response = response
         self.schema = None
-        self.messages = None
+        self.prompt_value = None
 
     def with_structured_output(self, schema):
         self.schema = schema
         return self
 
-    def invoke(self, messages):
-        self.messages = messages
+    def invoke(self, prompt_value):
+        self.prompt_value = prompt_value
         return self.response
+
+
+def test_judge_prompt_settings_use_environment_overrides(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CODE_JUDGE_PROMPT", "team/code:staging")
+    monkeypatch.setenv("MARKDOWN_JUDGE_PROMPT", "team/markdown:2026-07-10")
+
+    settings = JudgePromptSettings.from_environment()
+
+    assert settings.code_judge_prompt == "team/code:staging"
+    assert settings.markdown_judge_prompt == "team/markdown:2026-07-10"
+
+
+def test_judge_prompt_settings_use_production_defaults(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("CODE_JUDGE_PROMPT", raising=False)
+    monkeypatch.delenv("MARKDOWN_JUDGE_PROMPT", raising=False)
+
+    settings = JudgePromptSettings.from_environment()
+
+    assert settings.code_judge_prompt == DEFAULT_CODE_JUDGE_PROMPT
+    assert settings.markdown_judge_prompt == DEFAULT_MARKDOWN_JUDGE_PROMPT
 
 
 def code_context() -> CodeJudgeContext:
