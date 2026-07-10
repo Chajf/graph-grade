@@ -5,6 +5,12 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from langchain.chat_models import init_chat_model
+from langchain_core.prompts import (
+    ChatPromptTemplate,
+    HumanMessagePromptTemplate,
+    SystemMessagePromptTemplate,
+)
+from langsmith import Client
 
 from app.models.judges import (
     CodeJudgeContext,
@@ -67,37 +73,69 @@ def create_chat_model(settings: JudgeModelSettings | None = None) -> Any:
     )
 
 
-def create_code_judge(settings: JudgeModelSettings | None = None) -> LangChainCodeJudge:
-    return LangChainCodeJudge(chat_model=create_chat_model(settings))
+def create_code_judge(
+    settings: JudgeModelSettings | None = None,
+    prompt: ChatPromptTemplate | None = None,
+) -> LangChainCodeJudge:
+    return LangChainCodeJudge(
+        chat_model=create_chat_model(settings),
+        prompt=prompt or build_code_judge_prompt(),
+    )
 
 
 def create_markdown_judge(
     settings: JudgeModelSettings | None = None,
+    prompt: ChatPromptTemplate | None = None,
 ) -> LangChainMarkdownJudge:
-    return LangChainMarkdownJudge(chat_model=create_chat_model(settings))
+    return LangChainMarkdownJudge(
+        chat_model=create_chat_model(settings),
+        prompt=prompt or build_markdown_judge_prompt(),
+    )
+
+
+def create_langsmith_client() -> Client:
+    return Client()
+
+
+def pull_judge_prompt(client: Client, prompt_handle: str) -> ChatPromptTemplate:
+    prompt = client.pull_prompt(prompt_handle)
+    if not _is_judge_prompt_template(prompt):
+        raise ValueError(
+            f"LangSmith prompt {prompt_handle!r} must be a ChatPromptTemplate with "
+            "one system message, one human message, and only the {context} variable."
+        )
+    return prompt
+
+
+def _is_judge_prompt_template(prompt: object) -> bool:
+    return (
+        isinstance(prompt, ChatPromptTemplate)
+        and prompt.input_variables == ["context"]
+        and len(prompt.messages) == 2
+        and isinstance(prompt.messages[0], SystemMessagePromptTemplate)
+        and isinstance(prompt.messages[1], HumanMessagePromptTemplate)
+    )
 
 
 class LangChainCodeJudge:
-    def __init__(self, chat_model: Any) -> None:
+    def __init__(self, chat_model: Any, prompt: ChatPromptTemplate | None = None) -> None:
         self._structured_model = chat_model.with_structured_output(CodeJudgeResult)
+        self._chain = (prompt or build_code_judge_prompt()) | self._structured_model
 
     def judge_code(self, context: CodeJudgeContext) -> CodeJudgeResult:
-        prompt_value = build_code_judge_prompt().invoke(
-            {"context": serialize_code_judge_context(context)}
-        )
-        raw_result = self._structured_model.invoke(prompt_value)
+        raw_result = self._chain.invoke({"context": serialize_code_judge_context(context)})
         return _validate_judge_result(raw_result, CodeJudgeResult)
 
 
 class LangChainMarkdownJudge:
-    def __init__(self, chat_model: Any) -> None:
+    def __init__(self, chat_model: Any, prompt: ChatPromptTemplate | None = None) -> None:
         self._structured_model = chat_model.with_structured_output(MarkdownJudgeResult)
+        self._chain = (prompt or build_markdown_judge_prompt()) | self._structured_model
 
     def judge_markdown(self, context: MarkdownJudgeContext) -> MarkdownJudgeResult:
-        prompt_value = build_markdown_judge_prompt().invoke(
+        raw_result = self._chain.invoke(
             {"context": serialize_markdown_judge_context(context)}
         )
-        raw_result = self._structured_model.invoke(prompt_value)
         return _validate_judge_result(raw_result, MarkdownJudgeResult)
 
 

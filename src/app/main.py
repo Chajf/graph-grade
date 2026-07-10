@@ -15,8 +15,11 @@ from app.services.llms import (
     DEFAULT_JUDGE_PROVIDER,
     DEFAULT_JUDGE_TEMPERATURE,
     JudgeModelSettings,
+    JudgePromptSettings,
     create_code_judge,
+    create_langsmith_client,
     create_markdown_judge,
+    pull_judge_prompt,
 )
 from app.services.notebook_parser import parse_notebook
 
@@ -186,9 +189,17 @@ def build_judge_state(args: argparse.Namespace) -> dict[str, object]:
         model_provider=args.judge_provider,
         temperature=args.judge_temperature,
     )
+    prompt_settings = JudgePromptSettings.from_environment()
+    client = create_langsmith_client()
     return {
-        "code_judge": create_code_judge(settings),
-        "markdown_judge": create_markdown_judge(settings),
+        "code_judge": create_code_judge(
+            settings,
+            prompt=pull_judge_prompt(client, prompt_settings.code_judge_prompt),
+        ),
+        "markdown_judge": create_markdown_judge(
+            settings,
+            prompt=pull_judge_prompt(client, prompt_settings.markdown_judge_prompt),
+        ),
     }
 
 

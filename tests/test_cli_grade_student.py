@@ -101,21 +101,29 @@ def test_grade_student_can_enable_llm_judges(
     submissions_root = tmp_path / "prace"
     output_root = tmp_path / "grading_results"
     captured_settings = []
+    prompt_pull_calls = []
+    langsmith_client = object()
     write_spec(specs_root)
     write_notebook(
         submissions_root / "lab1" / "Jan_Kowalski" / "lab7" / "Wersja 1" / "lab7_Kowalski.ipynb"
     )
 
-    def create_code_judge(settings):
+    def create_code_judge(settings, prompt):
         captured_settings.append(("code", settings))
         return StubCodeJudge()
 
-    def create_markdown_judge(settings):
+    def create_markdown_judge(settings, prompt):
         captured_settings.append(("markdown", settings))
         return StubMarkdownJudge()
 
     monkeypatch.setattr(main_module, "create_code_judge", create_code_judge)
     monkeypatch.setattr(main_module, "create_markdown_judge", create_markdown_judge)
+    monkeypatch.setattr(main_module, "create_langsmith_client", lambda: langsmith_client)
+    monkeypatch.setattr(
+        main_module,
+        "pull_judge_prompt",
+        lambda client, handle: prompt_pull_calls.append((client, handle)) or object(),
+    )
 
     exit_code = main(
         [
@@ -148,6 +156,10 @@ def test_grade_student_can_enable_llm_judges(
     assert [(kind, settings.model, settings.model_provider, settings.temperature) for kind, settings in captured_settings] == [
         ("code", "test/model", "test-provider", 0.2),
         ("markdown", "test/model", "test-provider", 0.2),
+    ]
+    assert prompt_pull_calls == [
+        (langsmith_client, "code-judge:production"),
+        (langsmith_client, "markdown-judge:production"),
     ]
 
     grade_json = json.loads(Path(output["grade_path"]).read_text(encoding="utf-8"))
