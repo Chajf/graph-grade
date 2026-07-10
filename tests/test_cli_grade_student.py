@@ -1,4 +1,5 @@
 import json
+from argparse import Namespace
 from pathlib import Path
 
 import app.main as main_module
@@ -170,6 +171,80 @@ def test_grade_student_can_enable_llm_judges(
     ]
     assert requirement_grades[0]["comment"] == "LLM code judge adjusted score."
     assert requirement_grades[1]["comment"] == "LLM markdown judge adjusted score."
+
+
+def test_build_judge_state_uses_local_prompts_when_client_initialization_fails(
+    capsys,
+    monkeypatch,
+) -> None:
+    captured_prompts = []
+
+    monkeypatch.setattr(
+        main_module,
+        "create_langsmith_client",
+        lambda: (_ for _ in ()).throw(RuntimeError("LangSmith offline")),
+    )
+    monkeypatch.setattr(
+        main_module,
+        "create_code_judge",
+        lambda settings, prompt: captured_prompts.append(("code", prompt)) or object(),
+    )
+    monkeypatch.setattr(
+        main_module,
+        "create_markdown_judge",
+        lambda settings, prompt: captured_prompts.append(("markdown", prompt)) or object(),
+    )
+
+    state = main_module.build_judge_state(judge_args())
+
+    assert set(state) == {"code_judge", "markdown_judge"}
+    assert captured_prompts == [("code", None), ("markdown", None)]
+    assert capsys.readouterr().err.count("using the local fallback") == 2
+
+
+def test_build_judge_state_falls_back_per_prompt_without_skipping_other_pull(
+    capsys,
+    monkeypatch,
+) -> None:
+    captured_prompts = []
+    client = object()
+    markdown_prompt = object()
+
+    monkeypatch.setattr(main_module, "create_langsmith_client", lambda: client)
+
+    def pull_prompt(received_client, handle):
+        assert received_client is client
+        if handle == "code-judge:production":
+            raise ValueError("prompt is malformed")
+        return markdown_prompt
+
+    monkeypatch.setattr(main_module, "pull_judge_prompt", pull_prompt)
+    monkeypatch.setattr(
+        main_module,
+        "create_code_judge",
+        lambda settings, prompt: captured_prompts.append(("code", prompt)) or object(),
+    )
+    monkeypatch.setattr(
+        main_module,
+        "create_markdown_judge",
+        lambda settings, prompt: captured_prompts.append(("markdown", prompt)) or object(),
+    )
+
+    main_module.build_judge_state(judge_args())
+
+    assert captured_prompts == [("code", None), ("markdown", markdown_prompt)]
+    stderr = capsys.readouterr().err
+    assert "code-judge:production" in stderr
+    assert "markdown-judge:production" not in stderr
+
+
+def judge_args() -> Namespace:
+    return Namespace(
+        llm_judges=True,
+        judge_model="test/model",
+        judge_provider="test-provider",
+        judge_temperature=0.2,
+    )
 
 
 class StubCodeJudge:
