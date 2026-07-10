@@ -17,8 +17,11 @@ from app.models import (
     RequirementGrade,
     RequirementSpec,
 )
-from app.prompts.code_judge import build_code_judge_messages
-from app.prompts.markdown_judge import build_markdown_judge_messages
+from app.prompts.code_judge import build_code_judge_prompt, serialize_code_judge_context
+from app.prompts.markdown_judge import (
+    build_markdown_judge_prompt,
+    serialize_markdown_judge_context,
+)
 
 
 def test_code_judge_result_validates_status_confidence_and_points() -> None:
@@ -110,7 +113,9 @@ def test_markdown_judge_result_validates_status_confidence_and_points() -> None:
 def test_code_judge_prompt_separates_system_instructions_from_human_context() -> None:
     context = code_context()
 
-    messages = build_code_judge_messages(context)
+    prompt = build_code_judge_prompt()
+    assert prompt.input_variables == ["context"]
+    messages = prompt.invoke({"context": serialize_code_judge_context(context)}).messages
 
     assert isinstance(messages[0], SystemMessage)
     assert isinstance(messages[1], HumanMessage)
@@ -134,7 +139,9 @@ def test_code_judge_prompt_separates_system_instructions_from_human_context() ->
 def test_markdown_judge_prompt_separates_system_instructions_from_human_context() -> None:
     context = markdown_context()
 
-    messages = build_markdown_judge_messages(context)
+    prompt = build_markdown_judge_prompt()
+    assert prompt.input_variables == ["context"]
+    messages = prompt.invoke({"context": serialize_markdown_judge_context(context)}).messages
 
     assert isinstance(messages[0], SystemMessage)
     assert isinstance(messages[1], HumanMessage)

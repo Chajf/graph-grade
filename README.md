@@ -281,11 +281,23 @@ PYTHONPATH=src uv run python -m app.main grade-student \
   --judge-temperature 0
 ```
 
-Before using OpenRouter-backed judges, export an API key:
+Before using LangSmith-backed OpenRouter judges, export both API keys:
 
 ```bash
 export OPENROUTER_API_KEY="..."
+export LANGSMITH_API_KEY="lsv2_..."
 ```
+
+The judges pull the following LangSmith prompt handles by default:
+
+- `CODE_JUDGE_PROMPT=code-judge:production`
+- `MARKDOWN_JUDGE_PROMPT=markdown-judge:production`
+
+Set either variable to override its handle, including with a LangSmith tag or
+commit hash. Each remote prompt must be a `ChatPromptTemplate` containing one
+system message and one human `{context}` message. If LangSmith client
+initialization, a prompt pull, or prompt validation fails, grading prints a
+warning to stderr and uses the equivalent in-repository prompt instead.
 
 Judge options:
 
@@ -354,6 +366,7 @@ Artifact meanings:
 | Required files are missing | Put required files in the selected `Wersja N` folder or the lab folder. |
 | `grade-group requires --output-root` | Add `--output-root` or use `--dry-run`. |
 | LLM judge authentication fails | Verify the provider configuration and `OPENROUTER_API_KEY`. |
+| LangSmith prompt falls back locally | Verify `LANGSMITH_API_KEY`, the configured prompt handle, and its required `ChatPromptTemplate` contract. |
 
 ## Development
 

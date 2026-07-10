@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from langchain_core.runnables import RunnableLambda
 from pydantic import ValidationError
 
 from app.models import (
@@ -18,11 +19,17 @@ from app.models import (
 )
 from app.services import llms
 from app.services.llms import (
+    DEFAULT_CODE_JUDGE_PROMPT,
+    DEFAULT_MARKDOWN_JUDGE_PROMPT,
     JudgeModelSettings,
+    JudgePromptSettings,
     LangChainCodeJudge,
     LangChainMarkdownJudge,
     create_chat_model,
+    pull_judge_prompt,
 )
+from app.prompts.code_judge import build_code_judge_prompt
+from app.prompts.markdown_judge import build_markdown_judge_prompt
 
 
 def test_create_chat_model_uses_configured_settings(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -66,8 +73,8 @@ def test_code_judge_invokes_structured_model_with_code_schema() -> None:
 
     assert result == expected_result
     assert chat_model.schema is CodeJudgeResult
-    assert len(chat_model.messages) == 2
-    assert "code_schema" in str(chat_model.messages[1].content)
+    assert len(chat_model.prompt_value.messages) == 2
+    assert "code_schema" in str(chat_model.prompt_value.messages[1].content)
 
 
 def test_markdown_judge_validates_dict_response() -> None:
@@ -96,8 +103,8 @@ def test_markdown_judge_validates_dict_response() -> None:
         flags=["missing_mitigation_detail"],
     )
     assert chat_model.schema is MarkdownJudgeResult
-    assert len(chat_model.messages) == 2
-    assert "markdown_reflection" in str(chat_model.messages[1].content)
+    assert len(chat_model.prompt_value.messages) == 2
+    assert "markdown_reflection" in str(chat_model.prompt_value.messages[1].content)
 
 
 def test_malformed_structured_response_fails_validation() -> None:
@@ -116,19 +123,70 @@ def test_malformed_structured_response_fails_validation() -> None:
         judge.judge_code(code_context())
 
 
+def test_pull_judge_prompt_returns_valid_remote_template() -> None:
+    remote_prompt = build_code_judge_prompt()
+    client = StubLangSmithClient(remote_prompt)
+
+    prompt = pull_judge_prompt(client, "code-judge:production")
+
+    assert prompt is remote_prompt
+    assert client.handles == ["code-judge:production"]
+
+
+def test_pull_judge_prompt_rejects_invalid_remote_template() -> None:
+    client = StubLangSmithClient(build_markdown_judge_prompt().partial(context="fixed"))
+
+    with pytest.raises(ValueError, match="must be a ChatPromptTemplate"):
+        pull_judge_prompt(client, "markdown-judge:production")
+
+
 class StubChatModel:
     def __init__(self, response) -> None:
         self.response = response
         self.schema = None
-        self.messages = None
+        self.prompt_value = None
 
     def with_structured_output(self, schema):
         self.schema = schema
-        return self
+        return RunnableLambda(self._invoke)
 
-    def invoke(self, messages):
-        self.messages = messages
+    def _invoke(self, prompt_value):
+        self.prompt_value = prompt_value
         return self.response
+
+
+class StubLangSmithClient:
+    def __init__(self, prompt) -> None:
+        self.prompt = prompt
+        self.handles: list[str] = []
+
+    def pull_prompt(self, prompt_handle: str):
+        self.handles.append(prompt_handle)
+        return self.prompt
+
+
+def test_judge_prompt_settings_use_environment_overrides(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CODE_JUDGE_PROMPT", "team/code:staging")
+    monkeypatch.setenv("MARKDOWN_JUDGE_PROMPT", "team/markdown:2026-07-10")
+
+    settings = JudgePromptSettings.from_environment()
+
+    assert settings.code_judge_prompt == "team/code:staging"
+    assert settings.markdown_judge_prompt == "team/markdown:2026-07-10"
+
+
+def test_judge_prompt_settings_use_production_defaults(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("CODE_JUDGE_PROMPT", raising=False)
+    monkeypatch.delenv("MARKDOWN_JUDGE_PROMPT", raising=False)
+
+    settings = JudgePromptSettings.from_environment()
+
+    assert settings.code_judge_prompt == DEFAULT_CODE_JUDGE_PROMPT
+    assert settings.markdown_judge_prompt == DEFAULT_MARKDOWN_JUDGE_PROMPT
 
 
 def code_context() -> CodeJudgeContext:

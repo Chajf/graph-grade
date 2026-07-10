@@ -15,8 +15,11 @@ from app.services.llms import (
     DEFAULT_JUDGE_PROVIDER,
     DEFAULT_JUDGE_TEMPERATURE,
     JudgeModelSettings,
+    JudgePromptSettings,
     create_code_judge,
+    create_langsmith_client,
     create_markdown_judge,
+    pull_judge_prompt,
 )
 from app.services.notebook_parser import parse_notebook
 
@@ -186,10 +189,48 @@ def build_judge_state(args: argparse.Namespace) -> dict[str, object]:
         model_provider=args.judge_provider,
         temperature=args.judge_temperature,
     )
+    prompt_settings = JudgePromptSettings.from_environment()
+    try:
+        client = create_langsmith_client()
+    except Exception as exc:
+        _warn_prompt_fallback("code", prompt_settings.code_judge_prompt, exc)
+        _warn_prompt_fallback("markdown", prompt_settings.markdown_judge_prompt, exc)
+        code_prompt = None
+        markdown_prompt = None
+    else:
+        code_prompt = _pull_prompt_or_fallback(
+            client, "code", prompt_settings.code_judge_prompt
+        )
+        markdown_prompt = _pull_prompt_or_fallback(
+            client, "markdown", prompt_settings.markdown_judge_prompt
+        )
+
     return {
-        "code_judge": create_code_judge(settings),
-        "markdown_judge": create_markdown_judge(settings),
+        "code_judge": create_code_judge(
+            settings,
+            prompt=code_prompt,
+        ),
+        "markdown_judge": create_markdown_judge(
+            settings,
+            prompt=markdown_prompt,
+        ),
     }
+
+
+def _pull_prompt_or_fallback(client: object, judge_kind: str, prompt_handle: str):
+    try:
+        return pull_judge_prompt(client, prompt_handle)
+    except Exception as exc:
+        _warn_prompt_fallback(judge_kind, prompt_handle, exc)
+        return None
+
+
+def _warn_prompt_fallback(judge_kind: str, prompt_handle: str, exc: Exception) -> None:
+    print(
+        f"Warning: could not use LangSmith {judge_kind} judge prompt "
+        f"{prompt_handle!r}; using the local fallback. Reason: {exc}",
+        file=sys.stderr,
+    )
 
 
 def run_parse_notebook(args: argparse.Namespace) -> int:
